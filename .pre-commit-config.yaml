@@ -1,0 +1,64 @@
+# See https://pre-commit.com for more information
+# See https://pre-commit.com/hooks.html for more hooks
+
+default_install_hook_types: [pre-commit, pre-push, commit-msg]
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        name: ruff lint
+        args: [--fix]
+        stages: [pre-commit]
+      - id: ruff-format
+        name: ruff format
+        stages: [pre-commit]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v2.3.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: mixed-line-ending
+        args: [--fix, lf]
+      - id: no-commit-to-branch
+        stages: [pre-commit, pre-push]
+        args: [--branch, master, --branch, devtest-development]
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: []
+  - repo: https://github.com/PyCQA/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        stages: [pre-commit]
+        args: [--remove-all-unused-imports, --in-place]
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
+    hooks:
+      - id: ruff
+        name: ruff lint (pre-push - all files)
+        args: [--exit-non-zero-on-fix]
+        stages: [pre-push]
+        pass_filenames: false
+        always_run: true
+  - repo: local
+    hooks:
+      - id: pyright
+        name: "pyright type check"
+        entry: bash -c 'uv run pyright src'
+        language: system
+        types: [python]
+        pass_filenames: false
+        verbose: true
+      - id: tests
+        name: run unit tests
+        entry: make test
+        language: python
+        types: [python]
+        stages: [pre-push]
