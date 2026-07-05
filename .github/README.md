@@ -25,12 +25,12 @@ All configuration is via environment variables (see `.env.example`). Notable one
 
 | Var                 | Purpose                                                                       |
 | ------------------- | ----------------------------------------------------------------------------- |
-| `LLM_BASE_URL`      | OpenAI-compatible endpoint (e.g. `http://ollama:11434/v1`)                    |
-| `LLM_MODEL`         | Default model name                                                            |
-| `LLM_API_KEY`       | API key — any non-empty string for Ollama; real key for OpenAI/Together/etc.  |
+| `LLM__BASE_URL`     | OpenAI-compatible endpoint (e.g. `http://ollama:11434/v1`)                    |
+| `LLM__MODEL`        | Default model name                                                            |
+| `LLM__API_KEY`      | API key — any non-empty string for Ollama; real key for OpenAI/Together/etc.  |
 | `PORT`              | HTTP port (default `3000`)                                                    |
-| `LOGGING_MODE`      | `JSON` or `PRETTY`                                                            |
-| `OTEL_*`            | OpenTelemetry export settings                                                 |
+| `LOGGING__MODE`     | `JSON` or `PLAIN_TEXT`                                                        |
+| `OTEL__*`           | OpenTelemetry export settings                                                 |
 
 ## Status
 

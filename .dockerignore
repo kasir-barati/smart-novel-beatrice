@@ -1,0 +1,42 @@
+# Keep the build context small and reproducible.
+
+# Local development artefacts
+.venv/
+.env
+.env.local
+
+# Python caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.pyright/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# VCS + IDE
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# Tests are not needed inside the image
+tests/
+conftest.py
+**/*__test.py
+
+# Local-only setup — never ends up inside the beatrice image; only used by
+# sibling containers (e.g. the ollama build).
+local-setup/
+
+# Compose file — used to orchestrate the image, not to build it.
+compose.yml
+
+# Node/Python misc drift
+node_modules/
+dist/
+build/

@@ -76,6 +76,7 @@ lint_check:
 ## Apply linter to all files
 lint:
 	uv run ruff format .
+	uv run pyright src
 	uv run ruff check --fix .
 
 ## Remove build artefacts, caches, .venv, __pycache__

@@ -1,0 +1,59 @@
+name: Release Docker image
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          # TODO: replace with the smart-novel-beatrice Docker Hub account
+          username: 9109679196
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Release and publish Docker image
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # TODO: replace with the smart-novel-beatrice Docker Hub repo
+          DOCKERHUB_REPOSITORY: 9109679196/smart-novel-beatrice
+        run: |
+          npx \
+            --package semantic-release@24.2.9 \
+            --package @semantic-release/commit-analyzer@13.0.1 \
+            --package @semantic-release/release-notes-generator@14.1.0 \
+            --package @semantic-release/git \
+            --package @semantic-release/exec@7.1.0 \
+            --package @semantic-release/github@11.0.6 \
+            --package conventional-changelog-conventionalcommits@9.1.0 \
+            semantic-release

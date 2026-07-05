@@ -1,8 +1,7 @@
 [project]
-name = "smart-novel-beatrice"
+name = "beatrice"
 version = "0.0.0"
 description = "LLM-powered features for smart-novel: word explanation, TTS text normalization. GraphQL over an OpenAI-compatible model backend."
-readme = "README.md"
 requires-python = "==3.12.*"
 license = { text = "MIT" }
 authors = [{ name = "kasir-barati" }]
@@ -71,6 +70,11 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "**/*__test.py" = ["S101"]
 "tests/**/*.py" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+combine-as-imports = true
+lines-after-imports = 2
 
 [tool.ruff.format]
 quote-style = "double"

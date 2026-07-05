@@ -1,0 +1,74 @@
+services:
+  beatrice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      # Override values in .env that only make sense inside the compose network.
+      LLM__BASE_URL: http://ollama:11434/v1
+      OTEL__EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+      otel-healthcheck:
+        condition: service_completed_successfully
+
+  ollama:
+    build:
+      context: local-setup/ollama
+      dockerfile: Dockerfile
+      args:
+        OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/local/bin/healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.155.0
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./local-setup/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - 4318:4318 # OTLP HTTP -- apps point OTEL__EXPORTER_OTLP_ENDPOINT to this port
+      - 4317:4317 # OTLP gRPC -- Apps push traces via gRPC to this port
+
+  otel-healthcheck:
+    image: busybox:1.37
+    depends_on:
+      otel-collector:
+        condition: service_started
+    command:
+      - sh
+      - -eu
+      - -c
+      - |
+        for i in $$(seq 1 60); do
+          if wget -S -qO- --timeout=3 http://otel-collector:13133/ 2>&1; then
+            echo "otel-collector is healthy after $$i attempt(s)"
+            exit 0
+          fi
+          echo "[$$i/60] otel-collector not ready yet, retrying in 2s..."
+          sleep 2
+        done
+        echo "ERROR: otel-collector did not become healthy within 120s" >&2
+        exit 1
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - 16686:16686 # UI
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:14269"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
