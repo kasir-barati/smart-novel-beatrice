@@ -35,3 +35,7 @@ All configuration is via environment variables (see `.env.example`). Notable one
 ## Status
 
 Bootstrap / scaffolding phase — no endpoints implemented yet. Track progress against `smart-novel-beatrice-plan.md`.
+
+## References
+
+- https://dev.to/kasir-barati/does-pydantic-ais-structured-output-api-actually-work-against-ollamas-openai-compatible-endpoint-44aa

@@ -21,6 +21,7 @@ from src.utils.observability import (
     instrument_fastapi,
     setup_observability,
 )
+from src.utils.prompt_loader import load_prompt
 from src.utils.span_filter import ExcludeGraphQLOperationsSpanProcessor
 
 
@@ -38,5 +39,6 @@ __all__ = [
     "get_settings",
     "graphql_root_span_hook",
     "instrument_fastapi",
+    "load_prompt",
     "setup_observability",
 ]

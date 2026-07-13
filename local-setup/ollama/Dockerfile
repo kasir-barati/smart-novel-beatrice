@@ -1,18 +1,10 @@
-# Ollama container used by beatrice's compose.yml.
-#
-# Directly modelled on ../../smart-novel/local-setup/ollama/Dockerfile. Kept
-# self-contained here so beatrice can be developed without cloning the parent
-# smart-novel repo.
-#
-# - Use `0.17.7-rocm` if you deploy on AMD GPUs.
-# - The plain tag works for CPU and for NVIDIA GPUs when run with the NVIDIA
-#   Container Toolkit.
+# Kept self-contained here so developers can work without cloning the model over and over again.
+
 FROM ollama/ollama:0.17.7
 
 ARG OLLAMA_MODEL=llama3.2:1b
 ENV OLLAMA_MODEL=${OLLAMA_MODEL}
-# CAUTION: 0.0.0.0 means Ollama listens on every network interface — required
-# for the healthcheck and for beatrice to connect from a sibling container.
+# CAUTION: 0.0.0.0 means Ollama listens on every network interface — required for the healthcheck and for the container to be reachable from a sibling container.
 ENV OLLAMA_HOST=0.0.0.0
 ENV OLLAMA_PORT=11434
 
@@ -27,6 +19,5 @@ RUN /usr/local/bin/prepull-model.sh
 COPY --chmod=755 healthcheck.sh /usr/local/bin/healthcheck.sh
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 --start-period=45s CMD ["/usr/local/bin/healthcheck.sh"]
 
-# IMPORTANT: prepull-model.sh stops the daemon when it's done. We start a fresh
-# one here so the container becomes usable.
+# IMPORTANT: prepull-model.sh stops the daemon when it's done. We start a fresh one here so the container becomes usable.
 CMD ["serve"]

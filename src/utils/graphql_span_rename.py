@@ -28,9 +28,9 @@ Populated per-request by :func:`graphql_root_span_hook`.
 
 def graphql_root_span_hook(span: Span, scope: dict[str, Any]) -> None:
     """
-    Rename only HTTP requests.
+    Capture *span* as the current request's root span for later renaming.
 
-    We store the span in a `ContextVar` so :class:`GraphqlSpanRenameExtension` can rename *this* span later, from inside a nested child-span context.
+    Only fires for HTTP scopes; other ASGI scopes (``lifespan``, ``websocket``, …) are ignored.
     """
 
     if scope.get("type") != "http":

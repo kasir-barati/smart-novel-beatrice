@@ -1,25 +1,16 @@
 """
 Root Strawberry schema.
 
-Thin by design: import each module's resolvers and stitch them together into the top-level ``Query`` and (later) ``Mutation`` types.
+Thin by design: import each module's resolvers and stitch them together into the top-level ``Query`` and ``Mutation`` types.
 
 NOTE: modules never touch this file — they expose their resolvers and this file wires them.
-
-As new endpoints land the pattern is:
-
-.. code-block:: python
-
-    from src.modules.explain_word import explain_word
-
-    @strawberry.type
-    class Mutation:
-        explain_word: WordExplanation = strawberry.mutation(resolver=explain_word)
 """
 
 from __future__ import annotations
 
 import strawberry
 
+from src.modules.explain_word import WordExplanationType, explain_word
 from src.modules.healthcheck import HealthCheck, healthcheck
 from src.utils import GraphqlSpanRenameExtension
 
@@ -32,7 +23,18 @@ class Query:
     )
 
 
+@strawberry.type
+class Mutation:
+    explain_word: WordExplanationType = strawberry.mutation(
+        resolver=explain_word,
+        description=(
+            "Return a structured explanation of a word as it is used in the given context. "
+        ),
+    )
+
+
 schema = strawberry.Schema(
     query=Query,
+    mutation=Mutation,
     extensions=[GraphqlSpanRenameExtension],
 )

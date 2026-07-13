@@ -54,6 +54,9 @@ Thumbs.db
 *.log
 logs/
 
+# Eval harness per-run reports (baselines ARE committed)
+src/modules/*/evals/report.json
+
 # Local scratch
 tmp/
 scratch/

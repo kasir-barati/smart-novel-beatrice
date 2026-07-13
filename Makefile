@@ -2,7 +2,7 @@ SHELL         := /usr/bin/env bash
 .SHELLFLAGS   := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
-.PHONY: help init start_dev test integration_test evals evals_baseline lint_check lint clean
+.PHONY: help init start_dev test integration_test live_llm_test evals evals_baseline _run_evals lint_check lint clean
 
 # ---- Configurable knobs -----------------------------------------------------
 PORT      ?= 3000
@@ -37,47 +37,50 @@ start:
 test:
 	uv run pytest src/ -v
 
-## Run integration tests
+## Run integration tests (fast; excludes live-LLM tests)
 integration_test:
-	uv run pytest tests/ -v
+	uv run pytest tests/ -v -m "not live_llm"
+
+## Run live-LLM end-to-end tests (requires `docker compose up -d ollama`)
+live_llm_test:
+	uv run pytest tests/ -v -m live_llm
 
 ## Discover and run every module's evals/run.py against the current prompts
 evals:
-	@set -e; \
-	shopt -s nullglob; \
-	files=(src/modules/*/evals/run.py); \
-	if [ $${#files[@]} -eq 0 ]; then \
-		echo "No eval suites found under src/modules/*/evals/run.py"; \
-		exit 0; \
-	fi; \
-	for f in "$${files[@]}"; do \
-		echo "== running $$f =="; \
-		uv run python "$$f"; \
-	done
+	@$(MAKE) --no-print-directory _run_evals EVALS_ARGS=""
 
 ## Update the committed baseline scores after a deliberate quality change
 evals_baseline:
-	@set -e; \
+	@$(MAKE) --no-print-directory _run_evals EVALS_ARGS="--update-baseline"
+
+_run_evals:
+	@set -eu -o pipefail; \
 	shopt -s nullglob; \
 	files=(src/modules/*/evals/run.py); \
 	if [ $${#files[@]} -eq 0 ]; then \
 		echo "No eval suites found under src/modules/*/evals/run.py"; \
 		exit 0; \
 	fi; \
+	echo "== starting ollama (compose) =="; \
+	docker compose up -d --wait ollama; \
+	trap 'echo "== stopping ollama =="; docker compose stop ollama >/dev/null' EXIT; \
+	export LLM__BASE_URL="http://localhost:11434/v1"; \
 	for f in "$${files[@]}"; do \
-		echo "== baselining $$f =="; \
-		uv run python "$$f" --update-baseline; \
+		echo "== running $$f (LLM__BASE_URL=$$LLM__BASE_URL) =="; \
+		uv run python "$$f" $(EVALS_ARGS); \
 	done
 
 ## Runs ruff linter on all files
 lint_check:
 	uv run ruff check .
+	uv run python local-setup/scripts/check_private_imports.py
 
 ## Apply linter to all files
 lint:
 	uv run ruff format .
 	uv run pyright src
 	uv run ruff check --fix .
+	uv run python local-setup/scripts/check_private_imports.py
 
 ## Remove build artefacts, caches, .venv, __pycache__
 clean:

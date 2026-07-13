@@ -1,0 +1,17 @@
+{
+  "cascade": {
+    "DoesNotIncludeWordInSynonyms": true,
+    "HasNonEmptyMeaning": true,
+    "MeaningMentionsExpectedKeyword": true
+  },
+  "ephemeral": {
+    "DoesNotIncludeWordInSynonyms": true,
+    "HasNonEmptyMeaning": true,
+    "MeaningMentionsExpectedKeyword": true
+  },
+  "obsequious": {
+    "DoesNotIncludeWordInSynonyms": false,
+    "HasNonEmptyMeaning": true,
+    "MeaningMentionsExpectedKeyword": true
+  }
+}

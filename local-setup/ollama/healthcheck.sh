@@ -1,13 +1,4 @@
 #!/bin/sh
-#
-# Ollama container healthcheck. Verifies three properties:
-#
-#   1. The HTTP API is up (no 404 / connection error).
-#   2. The target model is registered locally.
-#   3. /api/generate accepts a minimal, non-streaming call.
-#
-# Adapted from ../../../smart-novel/local-setup/ollama/healthcheck.sh.
-
 set -eu
 
 HOST="${OLLAMA_HOST:-127.0.0.1}"

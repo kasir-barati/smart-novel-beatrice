@@ -1,11 +1,4 @@
 #!/bin/sh
-#
-# Pull the target Ollama model at *image build time* so container startup is
-# instant and offline-friendly. Runs a temporary ollama daemon, waits for it to
-# accept requests, pulls the model, then shuts the daemon back down.
-#
-# Adapted from ../../../smart-novel/local-setup/ollama/prepull-model.sh.
-
 set -eu
 
 HOST="${OLLAMA_HOST:-127.0.0.1}"

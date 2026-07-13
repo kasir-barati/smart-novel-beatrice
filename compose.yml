@@ -23,6 +23,8 @@ services:
       dockerfile: Dockerfile
       args:
         OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    ports:
+      - 11434:11434
     healthcheck:
       test: ["CMD-SHELL", "/usr/local/bin/healthcheck.sh"]
       interval: 30s

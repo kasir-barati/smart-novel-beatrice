@@ -129,6 +129,14 @@ def setup_observability(settings: Settings, version: str) -> None:
     _configured = True
 
 
+def _server_request_hook(span: Any, scope: dict[str, Any]) -> None:
+    """
+    OTel-compatible adapter around :func:`graphql_root_span_hook`.
+    """
+
+    graphql_root_span_hook(span, scope)
+
+
 def instrument_fastapi(app: Any) -> None:
     """
     Attach the FastAPI OTel instrumentor to *app*.
@@ -138,5 +146,5 @@ def instrument_fastapi(app: Any) -> None:
 
     FastAPIInstrumentor.instrument_app(
         app,
-        server_request_hook=graphql_root_span_hook,  # captures each server span into a `ContextVar` so `GraphqlSpanRenameExtension` can rename the root span from "POST /graphql" to the query/mutation name.
+        server_request_hook=_server_request_hook,
     )

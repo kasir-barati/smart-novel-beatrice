@@ -1,0 +1,42 @@
+# Eval dataset for the `explainWord` mutation.
+#
+# Each case is one (word, context) pair the agent must produce a `WordExplanation` for. Kept small; grow deliberately.
+#
+# Structural evaluators (see run.py) don't require reference answers, but we keep `expected_output` optional for cases where a specific keyword must appear in the meaning — a cheap sanity check independent of an LLM judge.
+
+cases:
+  - name: ephemeral
+    inputs:
+      word: ephemeral
+      context: >-
+        The graffiti was ephemeral, washed away by the first rain of the season.
+    metadata:
+      expected_meaning_contains:
+        - short
+        - brief
+        - temporary
+
+  - name: cascade
+    inputs:
+      word: cascade
+      context: >-
+        The failure cascaded through the microservices, taking down billing before the auth
+        service noticed anything was wrong.
+    metadata:
+      expected_meaning_contains:
+        - chain
+        - series
+        - propagate
+        - fall
+
+  - name: obsequious
+    inputs:
+      word: obsequious
+      context: >-
+        Her obsequious manner around the new director made her colleagues cringe.
+    metadata:
+      expected_meaning_contains:
+        - servile
+        - fawning
+        - flatter
+        - sycophant

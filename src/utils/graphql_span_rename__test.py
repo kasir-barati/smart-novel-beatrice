@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextvars import ContextVar
+from typing import TYPE_CHECKING
 
 import pytest
 import strawberry
@@ -11,9 +13,12 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from src.utils.graphql_span_rename import (
     GraphqlSpanRenameExtension,
-    _root_span,
     graphql_root_span_hook,
 )
+
+
+if TYPE_CHECKING:
+    from opentelemetry.trace import Span
 
 
 @strawberry.type
@@ -48,16 +53,26 @@ def tracer_setup() -> Iterator[tuple[trace.Tracer, InMemorySpanExporter]]:
     previous_provider = trace.get_tracer_provider()
     trace.set_tracer_provider(provider)
     tracer = provider.get_tracer(__name__)
-    _root_span.set(
-        None  # Reset the per-request ContextVar so a previous test that populated it (via the FastAPI hook) can't leak into the current one.
-    )
     try:
         yield tracer, exporter
     finally:
-        # Best-effort restoration: OTel intentionally allows the global provider to be replaced only once in a real process, but for tests we swap it back so a rogue import doesn't leak in-memory state across tests.
         trace.set_tracer_provider(previous_provider)
         exporter.clear()
-        _root_span.set(None)
+
+
+@pytest.fixture
+def isolated_root_span(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Swap the module-level ``_root_span`` ContextVar for a fresh one per test.
+
+    In production the ContextVar is scoped to each ASGI request's asyncio task and cleaned up implicitly by task teardown.
+    """
+
+    fresh: ContextVar[Span | None] = ContextVar(
+        "graphql_span_rename__root_span__test",
+        default=None,
+    )
+    monkeypatch.setattr("src.utils.graphql_span_rename._root_span", fresh)
 
 
 async def test_renames_span_for_named_query(
@@ -136,16 +151,14 @@ async def test_no_active_recording_span_is_safe(
 
 async def test_hook_captured_span_is_renamed_not_current_child(
     tracer_setup: tuple[trace.Tracer, InMemorySpanExporter],
+    isolated_root_span: None,
 ) -> None:
     tracer, exporter = tracer_setup
 
     with tracer.start_as_current_span("POST /graphql") as server_span:
         graphql_root_span_hook(server_span, {"type": "http"})
-        try:
-            with tracer.start_as_current_span("POST /graphql http receive"):
-                result = await _schema.execute("query GetPing { ping }")
-        finally:
-            _root_span.set(None)
+        with tracer.start_as_current_span("POST /graphql http receive"):
+            result = await _schema.execute("query GetPing { ping }")
 
     assert result.errors is None
     spans_by_name = {span.name: span for span in exporter.get_finished_spans()}
@@ -156,18 +169,18 @@ async def test_hook_captured_span_is_renamed_not_current_child(
     assert server.attributes["graphql.operation.name"] == "GetPing"
 
 
-def test_hook_ignores_non_http_scopes(
+@pytest.mark.parametrize("scope_type", ["lifespan", "websocket"])
+async def test_hook_ignores_non_http_scopes(
     tracer_setup: tuple[trace.Tracer, InMemorySpanExporter],
+    isolated_root_span: None,
+    scope_type: str,
 ) -> None:
-    tracer, _ = tracer_setup
-    _root_span.set(None)
+    tracer, exporter = tracer_setup
 
-    with tracer.start_as_current_span("lifespan") as span:
-        graphql_root_span_hook(span, {"type": "lifespan"})
-        assert _root_span.get() is None
+    with tracer.start_as_current_span("POST /graphql") as server_span:
+        graphql_root_span_hook(server_span, {"type": scope_type})
+        with tracer.start_as_current_span("child"):
+            await _schema.execute("query GetPing { ping }")
 
-        graphql_root_span_hook(span, {"type": "websocket"})
-        assert _root_span.get() is None
-
-        graphql_root_span_hook(span, {"type": "http"})
-        assert _root_span.get() is span
+    span_names = {span.name for span in exporter.get_finished_spans()}
+    assert "POST /graphql" in span_names
