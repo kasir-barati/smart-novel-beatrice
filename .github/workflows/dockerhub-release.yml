@@ -88,11 +88,23 @@ jobs:
           curl -fsS -X POST http://localhost:11434/api/show -H 'Content-Type: application/json' -d '{"name":"llama3.2:1b"}' | python -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps({"digest": d.get("digest"), "details": d.get("details"), "model_info_keys": sorted((d.get("model_info") or {}).keys())}, indent=2))'
 
       - name: Run evals
+        id: run_evals
         env:
           # Force compose's generated image name to match the tag we just loaded above, so `docker compose up ollama` skips rebuilding.
           COMPOSE_PROJECT_NAME: smart-novel-beatrice
           OLLAMA_MODEL: llama3.2:1b
         run: make evals
+
+      # Dump each module's report.json so we can compare CI booleans against the report.json committed from a local run. Runs only on failure to keep green pipelines quiet.
+      - name: Dump eval reports on failure
+        if: failure() && steps.run_evals.conclusion == 'failure'
+        run: |
+          shopt -s nullglob
+          for f in src/modules/*/evals/report.json; do
+            echo "== $f =="
+            cat "$f"
+            echo
+          done
 
   integration_tests:
     name: Run integration tests
