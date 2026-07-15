@@ -1,0 +1,133 @@
+name: Publish API docs
+
+# Triggered after the Release workflow succeeds on main. Reads the tag semantic-release just created, generates a SpectaQL site from the committed SDL, and publishes it under /v<version>/ + /latest/ on the gh-pages branch. The root index.html and versions.json are regenerated so the version picker on Pages stays accurate.
+
+on:
+  workflow_run:
+    workflows: ["Release Docker image"]
+    types:
+      - completed
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  publish_docs:
+    name: Build + publish versioned GraphQL docs
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Checkout main (after release)
+        uses: actions/checkout@v4
+        with:
+          # We need tags to resolve the version semantic-release just cut.
+          fetch-depth: 0
+          ref: main
+
+      - name: Resolve latest release tag
+        id: version
+        run: |
+          tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          if [ -z "$tag" ]; then
+            echo "No release tag found; aborting docs publish."
+            exit 1
+          fi
+          # semantic-release tags look like v1.2.3; strip the leading v for a clean dir name is optional. We keep the v-prefix so it matches the git tag exactly.
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Publishing docs for $tag"
+
+      - name: Verify docs/schema.graphql is present
+        run: |
+          if [ ! -f docs/schema.graphql ]; then
+            echo "docs/schema.graphql is missing. Ensure 'make schema' runs before merging schema changes."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install SpectaQL
+        run: npm install -g spectaql@2
+
+      - name: Build docs site into build/${{ steps.version.outputs.tag }}
+        env:
+          VERSION_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -eu
+          out="build/$VERSION_TAG"
+          mkdir -p "$out"
+          # SpectaQL reads schemaFile from the config; write output to a temp dir then move.
+          spectaql docs/spectaql.yml --target-dir "$out"
+          # Ship the SDL alongside the HTML so ?raw viewers still have it.
+          cp docs/schema.graphql "$out/schema.graphql"
+          # Inject the version-switcher script into the built index.html.
+          switcher_script="  <script>window.SNB_DOCS_VERSION=\"$VERSION_TAG\";</script>\n  <script src=\"../version-switcher.js\" defer></script>\n</head>"
+          # Use awk for portable in-place edit.
+          awk -v repl="$switcher_script" '{ gsub("</head>", repl); print }' "$out/index.html" > "$out/index.html.tmp"
+          mv "$out/index.html.tmp" "$out/index.html"
+
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages
+        continue-on-error: true
+
+      - name: Initialise gh-pages branch if missing
+        run: |
+          if [ ! -d gh-pages/.git ]; then
+            mkdir -p gh-pages
+            cd gh-pages
+            git init -b gh-pages
+            git remote add origin "https://github.com/${{ github.repository }}.git"
+          fi
+
+      - name: Assemble gh-pages contents
+        env:
+          VERSION_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -eu
+          # 1. Copy the new versioned dir in.
+          rm -rf "gh-pages/$VERSION_TAG"
+          cp -R "build/$VERSION_TAG" "gh-pages/$VERSION_TAG"
+
+          # 2. Refresh /latest/ to point at the new version.
+          rm -rf gh-pages/latest
+          cp -R "build/$VERSION_TAG" gh-pages/latest
+
+          # 3. Regenerate versions.json (newest first). Version dir names look like v1.2.3.
+          cd gh-pages
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+
+          version_re = re.compile(r'^v\d+\.\d+\.\d+([\-+].+)?$')
+          versions = sorted(
+              (p.name for p in Path('.').iterdir() if p.is_dir() and version_re.match(p.name)),
+              key=lambda s: [int(x) for x in re.findall(r'\d+', s.split('-')[0].split('+')[0])],
+              reverse=True,
+          )
+          Path('versions.json').write_text(json.dumps(versions, indent=2) + '\n')
+          print(f"versions.json: {versions}")
+          PY
+
+          # 4. Refresh the root index.html and version-switcher.js from the repo templates.
+          cp ../docs/_pages/index.html index.html
+          cp ../docs/_pages/version-switcher.js version-switcher.js
+
+          # 5. Disable Jekyll so GH Pages doesn't reprocess our assets and hide _pages.
+          touch .nojekyll
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./gh-pages
+          # Keep the branch history but never rebase away old versions.
+          keep_files: false
+          commit_message: "docs: publish ${{ steps.version.outputs.tag }}"

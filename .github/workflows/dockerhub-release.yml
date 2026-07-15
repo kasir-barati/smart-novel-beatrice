@@ -66,33 +66,11 @@ jobs:
           build-args: |
             OLLAMA_MODEL=qwen2.5:3b
 
-      # Seed a .env so pydantic-settings loads the same defaults it would on a dev machine after `make init`. Prevents "did settings load?" as a variable when diagnosing eval flakiness.
-      - name: Create .env from .env.example
-        run: cp .env.example .env
-
-      # Bring Ollama up ahead of `make evals` so we can print diagnostics (runtime version + model digest) against the exact daemon the evals will hit. `make evals` re-runs `docker compose up -d --wait ollama` internally, which is a no-op when the service is already healthy.
-      - name: Start Ollama and print diagnostics
-        env:
-          COMPOSE_PROJECT_NAME: smart-novel-beatrice
-          OLLAMA_MODEL: qwen2.5:3b
-        run: |
-          docker compose up -d --wait ollama
-          echo "== ollama server version =="
-          curl -fsS http://localhost:11434/api/version
-          echo
-          echo "== ollama CLI version (inside container) =="
-          docker compose exec -T ollama ollama --version
-          echo "== model digest (qwen2.5:3b) =="
-          curl -fsS http://localhost:11434/api/tags | python -c 'import json,sys; [print(m["name"], m.get("digest"), m.get("size"), m.get("modified_at")) for m in json.load(sys.stdin)["models"]]'
-          echo "== /api/show details =="
-          curl -fsS -X POST http://localhost:11434/api/show -H 'Content-Type: application/json' -d '{"name":"qwen2.5:3b"}' | python -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps({"digest": d.get("digest"), "details": d.get("details"), "model_info_keys": sorted((d.get("model_info") or {}).keys())}, indent=2))'
-
       - name: Run evals
         id: run_evals
         env:
           # Force compose's generated image name to match the tag we just loaded above, so `docker compose up ollama` skips rebuilding.
           COMPOSE_PROJECT_NAME: smart-novel-beatrice
-          OLLAMA_MODEL: qwen2.5:3b
         run: make evals
 
       # Dump each module's report.json so we can compare CI booleans against the report.json committed from a local run. Runs only on failure to keep green pipelines quiet.
@@ -127,7 +105,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # `local-setup/ollama/Dockerfile` bakes the model in at build time, so caching the built image = caching the model weights (~2 GB for qwen2.5:3b). We build once, load into the local daemon, and tag it with the exact name `docker compose up ollama` expects (<project>-<service>) so compose reuses it instead of rebuilding.
+      # Pre-build the Ollama image with GHA layer caching so tests/conftest.py finds `smart-novel-beatrice-ollama:latest` already loaded and skips building it (~2 GB model bake). The tag matches the constant `OLLAMA_IMAGE` in tests/conftest.py.
       - name: Build Ollama image (cached)
         uses: docker/build-push-action@v6
         with:
@@ -136,35 +114,10 @@ jobs:
           tags: smart-novel-beatrice-ollama:latest
           cache-from: type=gha,scope=ollama-evals
           cache-to: type=gha,scope=ollama-evals,mode=max
-          # Keep in sync with .env.example / compose.yml default. Bumping this invalidates the cache on purpose (different model = different image).
           build-args: |
             OLLAMA_MODEL=qwen2.5:3b
 
-      - name: Create .env from .env.example
-        run: cp .env.example .env
-
-      # TODO: REMOVE ME! Bring Ollama up ahead of the tests so we can print diagnostics (runtime version + model digest) against the exact daemon the tests will hit. Subsequent `docker compose up -d --wait ollama` calls are no-ops when the service is already healthy.
-      - name: Start Ollama and print diagnostics
-        env:
-          COMPOSE_PROJECT_NAME: smart-novel-beatrice
-          OLLAMA_MODEL: qwen2.5:3b
-        run: |
-          docker compose up -d --wait ollama
-          echo "== ollama server version =="
-          curl -fsS http://localhost:11434/api/version
-          echo
-          echo "== ollama CLI version (inside container) =="
-          docker compose exec -T ollama ollama --version
-          echo "== model digest (qwen2.5:3b) =="
-          curl -fsS http://localhost:11434/api/tags | python -c 'import json,sys; [print(m["name"], m.get("digest"), m.get("size"), m.get("modified_at")) for m in json.load(sys.stdin)["models"]]'
-          echo "== /api/show details =="
-          curl -fsS -X POST http://localhost:11434/api/show -H 'Content-Type: application/json' -d '{"name":"qwen2.5:3b"}' | python -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps({"digest": d.get("digest"), "details": d.get("details"), "model_info_keys": sorted((d.get("model_info") or {}).keys())}, indent=2))'
-
       - name: Run integration tests
-        env:
-          # Force compose's generated image name to match the tag we just loaded above, so `docker compose up ollama` skips rebuilding.
-          COMPOSE_PROJECT_NAME: smart-novel-beatrice
-          OLLAMA_MODEL: qwen2.5:3b
         run: make integration_test
 
   release:

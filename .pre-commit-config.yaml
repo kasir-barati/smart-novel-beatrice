@@ -56,6 +56,12 @@ repos:
         types: [python]
         pass_filenames: false
         verbose: true
+      - id: graphql-schema
+        name: "export GraphQL SDL (docs/schema.graphql)"
+        entry: bash -c 'make schema && git add docs/schema.graphql'
+        language: system
+        files: ^src/(schema\.py|modules/.+/(resolver|types)\.py)$
+        pass_filenames: false
       - id: tests
         name: run unit tests
         entry: make test

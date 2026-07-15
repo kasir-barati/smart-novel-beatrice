@@ -8,7 +8,7 @@ authors = [{ name = "kasir-barati" }]
 
 dependencies = [
     "fastapi>=0.115",
-    "strawberry-graphql[fastapi]>=0.243",
+    "strawberry-graphql[fastapi,cli]>=0.243",
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",

@@ -1,0 +1,27 @@
+spectaql:
+  logoFile: null
+  faviconFile: null
+  displayAllServers: true
+  targetDir: ./dist # Where SpectaQL writes the built site.
+  themeDir: null
+
+info:
+  title: beatrice
+  description: |
+    GraphQL API for LLM-powered smart-novel features.
+    The service is model-provider-agnostic — configure it against any OpenAI-compatible endpoint via env vars.
+
+    See the [repo](https://github.com/kasir-barati/smart-novel-beatrice) for setup and self-hosting instructions.
+  contact:
+    name: kasir-barati
+    url: https://github.com/kasir-barati/smart-novel-beatrice
+  x-introItems:
+    - title: Endpoint
+      description: |
+        All operations are served at `POST /graphql` on the deployed instance.
+
+introspection:
+  schemaFile: ./docs/schema.graphql
+  removeTrailingPeriodFromDescriptions: false # Hide fields you never want in public docs (add per-field @spectaqlDirective in the SDL to override).
+
+servers: []
