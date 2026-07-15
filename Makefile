@@ -35,15 +35,21 @@ start:
 
 ## Runs unit tests
 test:
+	@echo "== running unit tests at $$(date -u +%Y-%m-%dT%H:%M:%SZ) =="
 	uv run pytest src/ -v
+	@echo "== finished running unit tests at $$(date -u +%Y-%m-%dT%H:%M:%SZ) =="
 
 ## Run integration tests
 integration_test:
+	@echo "== running integration tests at $$(date -u +%Y-%m-%dT%H:%M:%SZ) =="
 	uv run pytest tests/ -v
+	@echo "== finished running integration tests at $$(date -u +%Y-%m-%dT%H:%M:%SZ) =="
 
 ## Discover and run every module's evals/run.py against the current prompts
 evals:
+	@echo "== running evals at $$(date -u +%Y-%m-%dT%H:%M:%SZ) =="
 	@$(MAKE) --no-print-directory _run_evals EVALS_ARGS=""
+	@echo "== finished running evals at $$(date -u +%Y-%m-%dT%H:%M:%SZ) =="
 
 ## Update the committed baseline scores after a deliberate quality change
 evals_baseline:
