@@ -1,6 +1,6 @@
 [project]
 name = "beatrice"
-version = "0.0.0"
+version = "1.0.0"
 description = "LLM-powered features for smart-novel: word explanation, TTS text normalization. GraphQL over an OpenAI-compatible model backend."
 requires-python = "==3.12.*"
 license = { text = "MIT" }
