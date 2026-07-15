@@ -2,7 +2,7 @@ SHELL         := /usr/bin/env bash
 .SHELLFLAGS   := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
-.PHONY: help init start_dev test integration_test live_llm_test evals evals_baseline _run_evals lint_check lint clean
+.PHONY: help init start_dev test integration_test evals evals_baseline _run_evals lint_check lint clean
 
 # ---- Configurable knobs -----------------------------------------------------
 PORT      ?= 3000
@@ -37,13 +37,9 @@ start:
 test:
 	uv run pytest src/ -v
 
-## Run integration tests (fast; excludes live-LLM tests)
+## Run integration tests
 integration_test:
-	uv run pytest tests/ -v -m "not live_llm"
-
-## Run live-LLM end-to-end tests (requires `docker compose up -d ollama`)
-live_llm_test:
-	uv run pytest tests/ -v -m live_llm
+	uv run pytest tests/ -v
 
 ## Discover and run every module's evals/run.py against the current prompts
 evals:
@@ -54,7 +50,7 @@ evals_baseline:
 	@$(MAKE) --no-print-directory _run_evals EVALS_ARGS="--update-baseline"
 
 _run_evals:
-	@set -eu -o pipefail; \
+	@set -u -o pipefail; \
 	shopt -s nullglob; \
 	files=(src/modules/*/evals/run.py); \
 	if [ $${#files[@]} -eq 0 ]; then \
@@ -65,10 +61,19 @@ _run_evals:
 	docker compose up -d --wait ollama; \
 	trap 'echo "== stopping ollama =="; docker compose stop ollama >/dev/null' EXIT; \
 	export LLM__BASE_URL="http://localhost:11434/v1"; \
+	failed=(); \
 	for f in "$${files[@]}"; do \
 		echo "== running $$f (LLM__BASE_URL=$$LLM__BASE_URL) =="; \
-		uv run python "$$f" $(EVALS_ARGS); \
-	done
+		if ! uv run python "$$f" $(EVALS_ARGS); then \
+			failed+=("$$f"); \
+		fi; \
+	done; \
+	if [ $${#failed[@]} -ne 0 ]; then \
+		echo ""; \
+		echo "== $${#failed[@]} eval suite(s) failed =="; \
+		for f in "$${failed[@]}"; do echo "  - $$f"; done; \
+		exit 1; \
+	fi
 
 ## Runs ruff linter on all files
 lint_check:

@@ -1,0 +1,40 @@
+# Eval dataset for the `normalizeTextForTts` mutation.
+#
+# Each case is one raw-text input the agent must normalise for TTS. Structural evaluators (see run.py) check the observable transformations documented in the prompt — matching the smart-novel NestJS behaviour we're porting.
+
+cases:
+  - name: stutter_expansion
+    inputs:
+      text: "W-What are you doing here?"
+    metadata:
+      must_contain: ["wh... what"]
+      must_not_contain: []
+
+  - name: all_caps_lowered
+    inputs:
+      text: "BOOM! The building shook."
+    metadata:
+      must_contain: []
+      must_not_contain: ["BOOM"]
+
+  - name: excessive_repetition_collapsed
+    inputs:
+      text: "ahhhh, that hurts"
+    metadata:
+      # Prompt says "3+ identical consecutive letters → max 2". "ahhhh" (4 h's) must NOT survive; the model may collapse to "ahh" (2 h's).
+      must_contain: []
+      must_not_contain: ["ahhhh"]
+
+  - name: elongation_tilde_stripped
+    inputs:
+      text: "ohhh~ interesting"
+    metadata:
+      must_contain: []
+      must_not_contain: ["~"]
+
+  - name: silent_dialogue_normalised
+    inputs:
+      text: "He looked at her. ...... She said nothing."
+    metadata:
+      must_contain: []
+      must_not_contain: ["......"]

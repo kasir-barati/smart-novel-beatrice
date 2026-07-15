@@ -21,5 +21,5 @@ async def test_healthcheck_query_success(http_client: AsyncClient) -> None:
     assert body.get("errors") is None
     payload = body["data"]["healthcheck"]
     assert payload["isRunning"] is True
-    assert payload["model"] == "integration-model"
+    assert payload["model"] == "llama3.2:1b"
     assert payload["version"]

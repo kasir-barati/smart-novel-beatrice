@@ -109,7 +109,6 @@ addopts = [
 asyncio_mode = "auto"
 markers = [
     "integration: end-to-end tests that hit real services (Testcontainers, live HTTP).",
-    "live_llm: end-to-end tests that call a live LLM. Requires `docker compose up -d ollama` to be running. Skipped by default; opt in with `-m live_llm`.",
 ]
 
 [tool.coverage.run]

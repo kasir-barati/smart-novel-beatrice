@@ -63,6 +63,18 @@ class EndpointOverride(BaseSettings):
     temperature: float | None = Field(default=None)
 
 
+class NormalizeTtsOverride(EndpointOverride):
+    """
+    Adds the safety threshold used to decide when to reject an LLM output that strayed too far from the input length.
+    """
+
+    max_length_deviation: float = Field(
+        default=0.3,
+        ge=0.0,
+        le=1.0,
+    )
+
+
 class Otel(BaseSettings):
     """OpenTelemetry configuration"""
 
@@ -97,11 +109,11 @@ class Settings(BaseSettings):
 
         return data["project"]["name"]
 
-    logging: Logging = Field(default_factory=Logging)  # type: ignore[arg-type]
-    llm: Llm = Field(default_factory=Llm)  # type: ignore[arg-type]
-    explain_word: EndpointOverride = Field(default_factory=EndpointOverride)  # type: ignore[arg-type]
-    normalize_tts: EndpointOverride = Field(default_factory=EndpointOverride)  # type: ignore[arg-type]
-    otel: Otel = Field(default_factory=Otel)  # type: ignore[arg-type]
+    logging: Logging = Field(default_factory=Logging)
+    llm: Llm = Field(default_factory=Llm)
+    explain_word: EndpointOverride = Field(default_factory=EndpointOverride)
+    normalize_tts: NormalizeTtsOverride = Field(default_factory=NormalizeTtsOverride)
+    otel: Otel = Field(default_factory=Otel)
 
 
 @lru_cache(maxsize=1)

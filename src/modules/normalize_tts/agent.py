@@ -1,5 +1,5 @@
 """
-pydantic-ai agent that powers the explainWord mutation.
+pydantic-ai agent that powers the normalizeTextForTts mutation.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pydantic_ai.output import NativeOutput
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.settings import ModelSettings
 
-from src.modules.explain_word.types import WordExplanation
+from src.modules.normalize_tts.types import NormalizedText
 from src.utils import Settings, get_settings, load_prompt
 
 
@@ -26,7 +26,7 @@ def resolve_model_settings(settings: Settings) -> ModelSettings:
     Builds a :class:`ModelSettings` bag from config.
     """
 
-    temperature = settings.explain_word.temperature
+    temperature = settings.normalize_tts.temperature
     timeout_s = settings.llm.timeout_ms / 1000
     kwargs: dict[str, float] = {"timeout": timeout_s}
 
@@ -36,12 +36,12 @@ def resolve_model_settings(settings: Settings) -> ModelSettings:
     return ModelSettings(**kwargs)  # type: ignore[typeddict-item]
 
 
-def build_agent(settings: Settings) -> Agent[None, WordExplanation]:
+def build_agent(settings: Settings) -> Agent[None, NormalizedText]:
     """
     Build a fresh pydantic-ai :class:`Agent` from a :class:`Settings` instance.
     """
 
-    model_name = settings.explain_word.model or settings.llm.model
+    model_name = settings.normalize_tts.model or settings.llm.model
     model_settings = resolve_model_settings(settings)
     provider = OpenAIProvider(
         base_url=settings.llm.base_url,
@@ -51,21 +51,21 @@ def build_agent(settings: Settings) -> Agent[None, WordExplanation]:
 
     return Agent(
         model,
-        output_type=NativeOutput(WordExplanation),
+        output_type=NativeOutput(NormalizedText),
         model_settings=model_settings,
     )
 
 
-_AGENT: Agent[None, WordExplanation] = build_agent(settings)
+_AGENT: Agent[None, NormalizedText] = build_agent(settings)
 """
 Module-level singleton: Agent is stateless per call so it is safe to reuse across requests. Building it once avoids re-creating the underlying HTTPX client + provider on every mutation.
 """
 
 
-async def explain_word_via_agent(word: str, context: str) -> WordExplanation:
-    """Calls LLM and returns the explanation of the word in the given context."""
+async def normalize_tts_via_agent(text: str) -> NormalizedText:
+    """Calls LLM and returns the TTS-normalised text."""
 
-    prompt = load_prompt(_PROMPTS_DIR, PROMPT_VERSION, word=word, context=context)
+    prompt = load_prompt(_PROMPTS_DIR, PROMPT_VERSION, text=text)
     result = await _AGENT.run(prompt)
 
     return result.output

@@ -8,10 +8,14 @@ from src.utils.config import (
     Logging,
     LoggingMode,
     LogLevel,
+    NormalizeTtsOverride,
     Otel,
     Settings,
     get_settings,
 )
+from src.utils.evals import EvalRunner
+from src.utils.exceptions import LLM_ERROR_CODE, AppError, LlmError
+from src.utils.graphql_scalars import SCALAR_MAP, NonEmptyTrimmedString
 from src.utils.graphql_span_rename import (
     GraphqlSpanRenameExtension,
     graphql_root_span_hook,
@@ -26,14 +30,21 @@ from src.utils.span_filter import ExcludeGraphQLOperationsSpanProcessor
 
 
 __all__ = [
+    "LLM_ERROR_CODE",
+    "SCALAR_MAP",
+    "AppError",
     "EndpointOverride",
+    "EvalRunner",
     "ExcludeGraphQLOperationsSpanProcessor",
     "GraphqlSpanRenameExtension",
     "JsonFormatter",
     "Llm",
+    "LlmError",
     "LogLevel",
     "Logging",
     "LoggingMode",
+    "NonEmptyTrimmedString",
+    "NormalizeTtsOverride",
     "Otel",
     "Settings",
     "get_settings",

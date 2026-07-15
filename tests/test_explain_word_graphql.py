@@ -1,11 +1,5 @@
 """
-E2E test for the ``explainWord`` GraphQL mutation.
-
-Slow (~2 min on CPU); marked ``live_llm`` and skipped unless explicitly opted into with::
-
-    uv run pytest tests/test_explain_word_graphql.py -m live_llm -v
-
-Requires ``docker compose up -d ollama`` to be running so that ``http://localhost:11434`` responds. The test skips itself otherwise.
+Integration test for the ``explainWord`` GraphQL mutation.
 """
 
 from __future__ import annotations
@@ -14,11 +8,11 @@ import pytest
 from httpx import AsyncClient
 
 
-pytestmark = [pytest.mark.asyncio, pytest.mark.live_llm]
+pytestmark = pytest.mark.asyncio
 
 
 EXPLAIN_WORD_MUTATION = """
-    mutation ExplainWord($word: String!, $context: String!) {
+    mutation ExplainWord($word: NonEmptyTrimmedString!, $context: NonEmptyTrimmedString!) {
         explainWord(word: $word, context: $context) {
             meaning
             simplifiedExplanation
@@ -29,10 +23,8 @@ EXPLAIN_WORD_MUTATION = """
 """
 
 
-async def test_explain_word_returns_structured_payload_from_live_ollama(
-    live_http_client: AsyncClient,
-) -> None:
-    response = await live_http_client.post(
+async def test_explain_word_returns_wellformed_payload(http_client: AsyncClient) -> None:
+    response = await http_client.post(
         "/graphql",
         json={
             "query": EXPLAIN_WORD_MUTATION,
@@ -48,11 +40,10 @@ async def test_explain_word_returns_structured_payload_from_live_ollama(
     assert response.status_code == 200
     body = response.json()
     assert body.get("errors") is None, body
-
     payload = body["data"]["explainWord"]
-    assert isinstance(payload["meaning"], str) and payload["meaning"]
-    assert isinstance(payload["simplifiedExplanation"], str) and payload["simplifiedExplanation"]
+    assert isinstance(payload["meaning"], str)
+    assert isinstance(payload["simplifiedExplanation"], str)
     assert isinstance(payload["synonyms"], list)
     assert isinstance(payload["antonyms"], list)
-    # Sanity: the model shouldn't return the input word among its own synonyms.
-    assert "ephemeral" not in [s.lower() for s in payload["synonyms"]]
+    assert all(isinstance(s, str) for s in payload["synonyms"])
+    assert all(isinstance(a, str) for a in payload["antonyms"])

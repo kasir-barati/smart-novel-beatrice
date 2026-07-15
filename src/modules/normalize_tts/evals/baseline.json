@@ -1,0 +1,27 @@
+{
+  "all_caps_lowered": {
+    "ContainsExpectedSubstring": true,
+    "DoesNotContainForbiddenSubstring": true,
+    "ProducesNonEmptyOutput": true
+  },
+  "elongation_tilde_stripped": {
+    "ContainsExpectedSubstring": true,
+    "DoesNotContainForbiddenSubstring": true,
+    "ProducesNonEmptyOutput": true
+  },
+  "excessive_repetition_collapsed": {
+    "ContainsExpectedSubstring": true,
+    "DoesNotContainForbiddenSubstring": true,
+    "ProducesNonEmptyOutput": true
+  },
+  "silent_dialogue_normalised": {
+    "ContainsExpectedSubstring": true,
+    "DoesNotContainForbiddenSubstring": true,
+    "ProducesNonEmptyOutput": true
+  },
+  "stutter_expansion": {
+    "ContainsExpectedSubstring": false,
+    "DoesNotContainForbiddenSubstring": true,
+    "ProducesNonEmptyOutput": true
+  }
+}
