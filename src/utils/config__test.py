@@ -39,7 +39,7 @@ def test_defaults_when_environment_is_empty(monkeypatch: pytest.MonkeyPatch, tmp
     assert settings.logging.level is LogLevel.INFO
     assert settings.service_name == "beatrice"
     assert settings.llm.base_url == "http://ollama:11434/v1"
-    assert settings.llm.model == "llama3.2:1b"
+    assert settings.llm.model == "qwen2.5:3b"
     assert settings.explain_word.model is None
     assert settings.otel.enabled is False
 

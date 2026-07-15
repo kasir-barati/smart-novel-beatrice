@@ -2,7 +2,7 @@
 
 FROM ollama/ollama:0.17.7
 
-ARG OLLAMA_MODEL=llama3.2:1b
+ARG OLLAMA_MODEL=qwen2.5:3b
 ENV OLLAMA_MODEL=${OLLAMA_MODEL}
 # CAUTION: 0.0.0.0 means Ollama listens on every network interface — required for the healthcheck and for the container to be reachable from a sibling container.
 ENV OLLAMA_HOST=0.0.0.0

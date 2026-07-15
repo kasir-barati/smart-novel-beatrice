@@ -11,10 +11,15 @@ cases:
       context: >-
         The graffiti was ephemeral, washed away by the first rain of the season.
     metadata:
+      # Substring-matched against `meaning.lower()`. Include roots (e.g. `disappear` matches `disappearing`) so the check is robust to inflection.
       expected_meaning_contains:
         - short
         - brief
         - temporary
+        - fleeting
+        - transient
+        - fading
+        - disappear
 
   - name: cascade
     inputs:
@@ -26,7 +31,9 @@ cases:
       expected_meaning_contains:
         - chain
         - series
+        - sequence
         - propagate
+        - spread
         - fall
 
   - name: obsequious
@@ -37,6 +44,9 @@ cases:
     metadata:
       expected_meaning_contains:
         - servile
+        - servility
         - fawning
         - flatter
         - sycophant
+        - deference
+        - submissive

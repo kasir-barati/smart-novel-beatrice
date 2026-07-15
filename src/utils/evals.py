@@ -33,6 +33,21 @@ def extract_scores(report: Any) -> Scores:
     return scores
 
 
+def find_broken_cases(expected_case_names: Sequence[str], scores: Scores) -> list[str]:
+    """
+    Return the names of cases that produced zero assertions.
+
+    A case with an empty assertions dict means the task callable raised an exception (pydantic-evals swallows per-case exceptions and continues). Treating this as a "no regression" is dangerous — it silently hides LLM outages, timeouts, and schema-validation failures, and if the baseline is then updated it becomes a permanent blind spot.
+    """
+
+    broken: list[str] = []
+    for name in expected_case_names:
+        case_scores = scores.get(name)
+        if not case_scores:
+            broken.append(name)
+    return broken
+
+
 def diff_against_baseline(current: Scores, baseline: Scores) -> list[str]:
     """
     Return every ``case::evaluator`` that WAS passing in *baseline* but now fails.
@@ -131,12 +146,25 @@ class EvalRunner[InputsT, OutputT, MetadataT]:
         """
 
         dataset = self.load_dataset()
+        expected_case_names = [case.name for case in dataset.cases if case.name is not None]
         print(f"Running {len(dataset.cases)} case(s) against the current agent...")
         report = await dataset.evaluate(self._task)
         scores = extract_scores(report)
 
         print(json.dumps(scores, indent=2, sort_keys=True))
         self.write_report(scores)
+
+        broken = find_broken_cases(expected_case_names, scores)
+        if broken:
+            print("BROKEN cases (task raised — zero assertions produced):")
+            for name in broken:
+                print(f"  - {name}")
+            print(
+                "This usually means the LLM call timed out, returned invalid JSON, "
+                "or the Ollama endpoint is unreachable. Refusing to compare against "
+                "baseline until every case runs to completion.",
+            )
+            return 1
 
         baseline = self.load_baseline()
         if baseline is None:
@@ -160,12 +188,25 @@ class EvalRunner[InputsT, OutputT, MetadataT]:
         """
 
         dataset = self.load_dataset()
+        expected_case_names = [case.name for case in dataset.cases if case.name is not None]
         print(f"Running {len(dataset.cases)} case(s) against the current agent...")
         report = await dataset.evaluate(self._task)
         scores = extract_scores(report)
 
         print(json.dumps(scores, indent=2, sort_keys=True))
         self.write_report(scores)
+
+        broken = find_broken_cases(expected_case_names, scores)
+        if broken:
+            print("BROKEN cases (task raised — zero assertions produced):")
+            for name in broken:
+                print(f"  - {name}")
+            print(
+                "Refusing to overwrite baseline with partial results. Fix the "
+                "underlying LLM/task failure first, then re-run --update-baseline.",
+            )
+            return 1
+
         self.write_baseline(scores)
         print(f"Baseline updated → {self._baseline_path}")
         return 0

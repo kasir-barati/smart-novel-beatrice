@@ -1,7 +1,27 @@
 from __future__ import annotations
 
 import strawberry
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _dedupe_and_cap(values: list[str]) -> list[str]:
+    """
+    Case-insensitively deduplicate ``values``, then cap the result at 5.
+    """
+
+    seen: set[str] = set()
+    cleaned: list[str] = []
+
+    for value in values:
+        key = value.strip().lower()
+
+        if not key or key in seen:
+            continue
+
+        seen.add(key)
+        cleaned.append(value.strip())
+
+    return cleaned[:5]
 
 
 class WordExplanation(BaseModel):
@@ -21,6 +41,11 @@ class WordExplanation(BaseModel):
         default_factory=list,
         description="Up to five words meaning roughly the opposite.",
     )
+
+    @field_validator("synonyms", "antonyms", mode="after")
+    @classmethod
+    def _normalize_word_list(cls, values: list[str]) -> list[str]:
+        return _dedupe_and_cap(values)
 
 
 @strawberry.experimental.pydantic.type(

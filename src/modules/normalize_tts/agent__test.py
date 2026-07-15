@@ -37,7 +37,7 @@ def test_build_agent_prefers_endpoint_override_model(
 ) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("NORMALIZE_TTS__MODEL", "qwen2.5:7b")
-    monkeypatch.setenv("LLM__MODEL", "llama3.2:1b")
+    monkeypatch.setenv("LLM__MODEL", "qwen2.5:0.5b")
 
     agent = build_agent(Settings())
 
@@ -46,11 +46,11 @@ def test_build_agent_prefers_endpoint_override_model(
 
 def test_build_agent_falls_back_to_global_model(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("LLM__MODEL", "llama3.2:1b")
+    monkeypatch.setenv("LLM__MODEL", "qwen2.5:0.5b")
 
     agent = build_agent(Settings())
 
-    assert _model_name_of(agent) == "llama3.2:1b"
+    assert _model_name_of(agent) == "qwen2.5:0.5b"
 
 
 def test_build_agent_converts_timeout_ms_to_seconds(

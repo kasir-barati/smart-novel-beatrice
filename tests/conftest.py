@@ -91,7 +91,7 @@ def app_container(app_image: str) -> Iterator[DockerContainer]:
         DockerContainer(app_image)
         .with_exposed_ports(CONTAINER_PORT)
         .with_env("LLM__BASE_URL", HOST_OLLAMA_URL_FROM_CONTAINER)
-        .with_env("LLM__MODEL", "llama3.2:1b")
+        .with_env("LLM__MODEL", "qwen2.5:3b")
         .with_env("LLM__TIMEOUT_MS", "180000")
         .with_env("OTEL__ENABLED", "false")
         .with_env("PORT", str(CONTAINER_PORT))

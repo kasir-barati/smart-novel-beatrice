@@ -46,7 +46,7 @@ class Llm(BaseSettings):
         description="Ollama accepts any non-empty string; real providers need a real key.",
     )
     model: str = Field(
-        default="llama3.2:1b",
+        default="qwen2.5:3b",
         description="Default model name for all endpoints unless overridden.",
     )
     timeout_ms: int = Field(
