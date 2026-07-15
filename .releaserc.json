@@ -24,12 +24,12 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "python -c \"import re, pathlib; p = pathlib.Path('pyproject.toml'); s = p.read_text(); s = re.sub(r'^version = \\\"[^\\\"]+\\\"', 'version = \\\"${nextRelease.version}\\\"', s, count=1, flags=re.MULTILINE); p.write_text(s)\""
+        "prepareCmd": "python -c \"import re, pathlib; p = pathlib.Path('pyproject.toml'); s = p.read_text(); s = re.sub(r'^version = \\\"[^\\\"]+\\\"', 'version = \\\"${nextRelease.version}\\\"', s, count=1, flags=re.MULTILINE); p.write_text(s)\" && uv lock"
       }
     ],
     [
       "@semantic-release/git",
-      { "assets": ["pyproject.toml"] }
+      { "assets": ["pyproject.toml", "uv.lock"] }
     ],
     [
       "@semantic-release/exec",
