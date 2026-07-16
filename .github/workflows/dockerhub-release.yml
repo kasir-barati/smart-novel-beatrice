@@ -11,6 +11,53 @@ permissions:
   pull-requests: write
 
 jobs:
+  check_release:
+    name: Check if a release is needed
+    runs-on: ubuntu-latest
+    outputs:
+      will_release: ${{ steps.decide.outputs.will_release }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Decide via semantic-release --dry-run
+        id: decide
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          # Dry-run prints "The next release version is X.Y.Z" when a release would happen, and "There are no relevant changes, so no new version is released" otherwise. We capture stdout+stderr and grep for the decision line.
+          output="$(
+            npx \
+              --package semantic-release@24.2.9 \
+              --package @semantic-release/commit-analyzer@13.0.1 \
+              --package @semantic-release/release-notes-generator@14.1.0 \
+              --package @semantic-release/git \
+              --package @semantic-release/exec@7.1.0 \
+              --package @semantic-release/github@11.0.6 \
+              --package conventional-changelog-conventionalcommits@9.1.0 \
+              semantic-release --dry-run 2>&1
+          )" || {
+            echo "$output"
+            echo "semantic-release --dry-run failed."
+            exit 1
+          }
+          echo "$output"
+          if echo "$output" | grep -q "The next release version is"; then
+            echo "will_release=true" >> "$GITHUB_OUTPUT"
+            echo "==> A release will be cut."
+          else
+            echo "will_release=false" >> "$GITHUB_OUTPUT"
+            echo "==> No release needed."
+          fi
+
   unit_tests:
     name: Run unit tests
     runs-on: ubuntu-latest
@@ -34,6 +81,8 @@ jobs:
 
   evals:
     name: Run evals
+    needs: check_release
+    if: ${{ needs.check_release.outputs.will_release == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -86,6 +135,8 @@ jobs:
 
   integration_tests:
     name: Run integration tests
+    needs: check_release
+    if: ${{ needs.check_release.outputs.will_release == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
