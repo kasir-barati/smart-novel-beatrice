@@ -110,6 +110,7 @@ schema:
 	mkdir -p docs
 	uv run strawberry export-schema src.schema:schema > docs/schema.graphql
 	@echo "== wrote docs/schema.graphql ($$(wc -l < docs/schema.graphql) lines) =="
+	uv run pre-commit run --files docs/schema.graphql
 
 ## Runs ruff linter on all files
 lint_check:
