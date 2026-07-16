@@ -26,6 +26,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+
+      - name: Install release deps
+        run: npm ci
 
       - name: Decide via semantic-release --dry-run
         id: decide
@@ -34,17 +38,7 @@ jobs:
         run: |
           set -eu
           # Dry-run prints "The next release version is X.Y.Z" when a release would happen, and "There are no relevant changes, so no new version is released" otherwise. We capture stdout+stderr and grep for the decision line.
-          output="$(
-            npx \
-              --package semantic-release@24.2.9 \
-              --package @semantic-release/commit-analyzer@13.0.1 \
-              --package @semantic-release/release-notes-generator@14.1.0 \
-              --package @semantic-release/git \
-              --package @semantic-release/exec@7.1.0 \
-              --package @semantic-release/github@11.0.6 \
-              --package conventional-changelog-conventionalcommits@9.1.0 \
-              semantic-release --dry-run 2>&1
-          )" || {
+          output="$(npm run --silent release -- --dry-run 2>&1)" || {
             echo "$output"
             echo "semantic-release --dry-run failed."
             exit 1
@@ -193,6 +187,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
+
+      - name: Install release deps
+        run: npm ci
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -212,13 +210,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # TODO: replace with the smart-novel-beatrice Docker Hub repo
           DOCKERHUB_REPOSITORY: 9109679196/smart-novel-beatrice
-        run: |
-          npx \
-            --package semantic-release@24.2.9 \
-            --package @semantic-release/commit-analyzer@13.0.1 \
-            --package @semantic-release/release-notes-generator@14.1.0 \
-            --package @semantic-release/git \
-            --package @semantic-release/exec@7.1.0 \
-            --package @semantic-release/github@11.0.6 \
-            --package conventional-changelog-conventionalcommits@9.1.0 \
-            semantic-release
+        run: npm run release

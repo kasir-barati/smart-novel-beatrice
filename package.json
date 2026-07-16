@@ -1,0 +1,17 @@
+{
+  "name": "smart-novel-beatrice-release",
+  "private": true,
+  "description": "Node dependency manifest for the release toolchain (semantic-release + plugins). Kept separate from the Python project's pyproject.toml.",
+  "scripts": {
+    "release": "semantic-release"
+  },
+  "devDependencies": {
+    "semantic-release": "24.2.9",
+    "@semantic-release/commit-analyzer": "13.0.1",
+    "@semantic-release/release-notes-generator": "14.1.0",
+    "@semantic-release/git": "10.0.1",
+    "@semantic-release/exec": "7.1.0",
+    "@semantic-release/github": "11.0.6",
+    "conventional-changelog-conventionalcommits": "9.1.0"
+  }
+}

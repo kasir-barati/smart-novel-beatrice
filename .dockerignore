@@ -40,3 +40,9 @@ compose.yml
 node_modules/
 dist/
 build/
+
+# Release tooling
+package.json
+package-lock.json
+.releaserc.json
+.github/

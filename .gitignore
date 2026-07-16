@@ -60,3 +60,6 @@ src/modules/*/evals/report.json
 # Local scratch
 tmp/
 scratch/
+
+# Release tooling only
+node_modules/
