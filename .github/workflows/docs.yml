@@ -56,7 +56,7 @@ jobs:
           node-version: 24
 
       - name: Install SpectaQL
-        run: npm install -g spectaql@2
+        run: npm install -g spectaql@3
 
       - name: Build docs site into docs/${{ steps.version.outputs.tag }}
         env:

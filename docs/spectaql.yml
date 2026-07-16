@@ -1,9 +1,6 @@
 spectaql:
-  logoFile: null
-  faviconFile: null
   displayAllServers: true
   targetDir: ./dist # Where SpectaQL writes the built site.
-  themeDir: null
 
 info:
   title: beatrice
@@ -15,6 +12,8 @@ info:
   contact:
     name: kasir-barati
     url: https://github.com/kasir-barati/smart-novel-beatrice
+  # SpectaQL requires at least one of introspection.url/servers.url/info.x-url. We ship purely-static docs (no live endpoint to point at), so we use x-url as a placeholder pointing at the repo — users self-host and hit /graphql on their own instance.
+  x-url: https://github.com/kasir-barati/smart-novel-beatrice
   x-introItems:
     - title: Endpoint
       description: |
