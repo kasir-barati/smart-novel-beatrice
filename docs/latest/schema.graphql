@@ -1,0 +1,52 @@
+"""Snapshot of service liveness and configured model."""
+type HealthCheck {
+  """Always true when this resolver executes."""
+  isRunning: Boolean!
+
+  """LLM model this service is currently configured to use."""
+  model: String!
+
+  """
+  Service version — matches the Docker Hub image tag published from the same commit.
+  """
+  version: String!
+}
+
+type Mutation {
+  """
+  Return a structured explanation of a word as it is used in the given context.
+  """
+  explainWord(word: NonEmptyTrimmedString!, context: NonEmptyTrimmedString!): WordExplanationType!
+
+  """Return an LLM-normalised version of the given text suitable for TTS."""
+  normalizeTextForTts(text: NonEmptyTrimmedString!): String!
+}
+
+"""
+String scalar that trims leading/trailing whitespace and rejects empty or whitespace-only values.
+"""
+scalar NonEmptyTrimmedString
+
+type Query {
+  """
+  Healthcheck API which returns basic info about the service and if it is running.
+  """
+  healthcheck: HealthCheck!
+}
+
+"""
+Structured explanation of one word as it is used in a specific context.
+"""
+type WordExplanationType {
+  """Concise dictionary-style definition of the word as used in context."""
+  meaning: String!
+
+  """Same idea expressed for a younger or non-native reader."""
+  simplifiedExplanation: String!
+
+  """Up to five words meaning roughly the same thing."""
+  synonyms: [String!]!
+
+  """Up to five words meaning roughly the opposite."""
+  antonyms: [String!]!
+}
