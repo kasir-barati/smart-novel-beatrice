@@ -1,6 +1,7 @@
 spectaql:
   displayAllServers: true
   targetDir: ./dist # Where SpectaQL writes the built site.
+  themeDir: ./.spectaql-deps/node_modules/spectaql-dark-theme/theme
 
 info:
   title: beatrice
