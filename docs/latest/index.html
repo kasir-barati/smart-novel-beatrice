@@ -141,8 +141,8 @@
   <span class="hljs-attr">"data"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span>
     <span class="hljs-attr">"healthcheck"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span>
       <span class="hljs-attr">"isRunning"</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><span class="hljs-punctuation">,</span>
-      <span class="hljs-attr">"model"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span><span class="hljs-punctuation">,</span>
-      <span class="hljs-attr">"version"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span>
+      <span class="hljs-attr">"model"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"qwen2.5:3b"</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">"version"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"1.0.1"</span>
     <span class="hljs-punctuation">}</span>
   <span class="hljs-punctuation">}</span>
 <span class="hljs-punctuation">}</span>
@@ -185,15 +185,13 @@
                         <td>
                           <span class="property-name"><code>word</code></span> - <span class="property-type"><a href="#definition-NonEmptyTrimmedString"><code>NonEmptyTrimmedString!</code></a></span>
                         </td>
-                        <td>
-                        </td>
+                        <td> The single word to explain. </td>
                       </tr>
                       <tr>
                         <td>
                           <span class="property-name"><code>context</code></span> - <span class="property-type"><a href="#definition-NonEmptyTrimmedString"><code>NonEmptyTrimmedString!</code></a></span>
                         </td>
-                        <td>
-                        </td>
+                        <td> The sentence or paragraph the word appears in — used to disambiguate its meaning. </td>
                       </tr>
                     </tbody>
                   </table>
@@ -222,8 +220,8 @@
                 <div class="example-section example-section-is-code operation-variables-example">
                   <h5>Variables</h5>
                   <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span>
-  <span class="hljs-attr">"word"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">NonEmptyTrimmedString</span><span class="hljs-punctuation">,</span>
-  <span class="hljs-attr">"context"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">NonEmptyTrimmedString</span>
+  <span class="hljs-attr">"word"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"impulse"</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">"context"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"She acted on impulse and booked a flight home the same night."</span>
 <span class="hljs-punctuation">}</span>
 </code></pre>
                 </div>
@@ -232,10 +230,10 @@
                   <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span>
   <span class="hljs-attr">"data"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span>
     <span class="hljs-attr">"explainWord"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span>
-      <span class="hljs-attr">"meaning"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span><span class="hljs-punctuation">,</span>
-      <span class="hljs-attr">"simplifiedExplanation"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"xyz789"</span><span class="hljs-punctuation">,</span>
-      <span class="hljs-attr">"synonyms"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"xyz789"</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span>
-      <span class="hljs-attr">"antonyms"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"abc123"</span><span class="hljs-punctuation">]</span>
+      <span class="hljs-attr">"meaning"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"A sudden strong urge to do something impulsive."</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">"simplifiedExplanation"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"A quick feeling that makes you want to do something without thinking."</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">"synonyms"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"urge"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"whim"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"impulse"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"instinct"</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">"antonyms"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"hesitation"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"deliberation"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"restraint"</span><span class="hljs-punctuation">]</span>
     <span class="hljs-punctuation">}</span>
   <span class="hljs-punctuation">}</span>
 <span class="hljs-punctuation">}</span>
@@ -280,8 +278,7 @@
                         <td>
                           <span class="property-name"><code>text</code></span> - <span class="property-type"><a href="#definition-NonEmptyTrimmedString"><code>NonEmptyTrimmedString!</code></a></span>
                         </td>
-                        <td>
-                        </td>
+                        <td> Raw text to be normalised for TTS — numbers, acronyms, symbols, and dates are rewritten into the form a speech engine can read aloud naturally. </td>
                       </tr>
                     </tbody>
                   </table>
@@ -298,7 +295,7 @@
                 </div>
                 <div class="example-section example-section-is-code operation-variables-example">
                   <h5>Variables</h5>
-                  <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span><span class="hljs-attr">"text"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">NonEmptyTrimmedString</span><span class="hljs-punctuation">}</span>
+                  <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span><span class="hljs-attr">"text"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"Dr. Smith met with 3 clients at 9am on 12/03/2024."</span><span class="hljs-punctuation">}</span>
 </code></pre>
                 </div>
                 <div class="example-section example-section-is-code operation-response-example">
@@ -320,11 +317,6 @@
                 </div>
               </div>
               <div class="doc-examples">
-                <div class="example-section example-section-is-code">
-                  <h5>Example</h5>
-                  <pre><code class="hljs language-json"><span class="hljs-literal"><span class="hljs-keyword">true</span></span>
-</code></pre>
-                </div>
               </div>
             </div>
           </section>
@@ -371,11 +363,7 @@
               <div class="doc-examples">
                 <div class="example-section example-section-is-code">
                   <h5>Example</h5>
-                  <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span>
-  <span class="hljs-attr">"isRunning"</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">false</span></span><span class="hljs-punctuation">,</span>
-  <span class="hljs-attr">"model"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span><span class="hljs-punctuation">,</span>
-  <span class="hljs-attr">"version"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span>
-<span class="hljs-punctuation">}</span>
+                  <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span><span class="hljs-attr">"isRunning"</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">true</span></span><span class="hljs-punctuation">,</span> <span class="hljs-attr">"model"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"qwen2.5:3b"</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">"version"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"1.0.1"</span><span class="hljs-punctuation">}</span>
 </code></pre>
                 </div>
               </div>
@@ -417,7 +405,7 @@
               <div class="doc-examples">
                 <div class="example-section example-section-is-code">
                   <h5>Example</h5>
-                  <pre><code class="hljs language-gql"><span class="hljs-symbol">"xyz789"</span>
+                  <pre><code class="hljs language-gql"><span class="hljs-symbol">"abc123"</span>
 </code></pre>
                 </div>
               </div>
@@ -472,10 +460,10 @@
                 <div class="example-section example-section-is-code">
                   <h5>Example</h5>
                   <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span>
-  <span class="hljs-attr">"meaning"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"xyz789"</span><span class="hljs-punctuation">,</span>
-  <span class="hljs-attr">"simplifiedExplanation"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span><span class="hljs-punctuation">,</span>
-  <span class="hljs-attr">"synonyms"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"xyz789"</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span>
-  <span class="hljs-attr">"antonyms"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"abc123"</span><span class="hljs-punctuation">]</span>
+  <span class="hljs-attr">"meaning"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"A sudden strong urge to do something impulsive."</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">"simplifiedExplanation"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"A quick feeling that makes you want to do something without thinking."</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">"synonyms"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"urge"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"whim"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"impulse"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"instinct"</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">"antonyms"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"hesitation"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"deliberation"</span><span class="hljs-punctuation">,</span> <span class="hljs-string">"restraint"</span><span class="hljs-punctuation">]</span>
 <span class="hljs-punctuation">}</span>
 </code></pre>
                 </div>

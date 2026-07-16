@@ -1,25 +1,41 @@
+"""Metadata for SpectaQL docs (examples, undocumented flags, …)."""
+directive @spectaql(options: [SpectaqlOption!]!) on OBJECT | FIELD_DEFINITION | ARGUMENT_DEFINITION | SCALAR | INPUT_OBJECT | INPUT_FIELD_DEFINITION | INTERFACE | UNION | ENUM | ENUM_VALUE
+
 """Snapshot of service liveness and configured model."""
 type HealthCheck {
   """Always true when this resolver executes."""
-  isRunning: Boolean!
+  isRunning: Boolean! @spectaql(options: [{key: "example", value: "true"}])
 
   """LLM model this service is currently configured to use."""
-  model: String!
+  model: String! @spectaql(options: [{key: "example", value: "\"qwen2.5:3b\""}])
 
   """
   Service version — matches the Docker Hub image tag published from the same commit.
   """
-  version: String!
+  version: String! @spectaql(options: [{key: "example", value: "\"1.0.1\""}])
 }
 
 type Mutation {
   """
   Return a structured explanation of a word as it is used in the given context.
   """
-  explainWord(word: NonEmptyTrimmedString!, context: NonEmptyTrimmedString!): WordExplanationType!
+  explainWord(
+    """The single word to explain."""
+    word: NonEmptyTrimmedString! @spectaql(options: [{key: "example", value: "\"impulse\""}])
+
+    """
+    The sentence or paragraph the word appears in — used to disambiguate its meaning.
+    """
+    context: NonEmptyTrimmedString! @spectaql(options: [{key: "example", value: "\"She acted on impulse and booked a flight home the same night.\""}])
+  ): WordExplanationType!
 
   """Return an LLM-normalised version of the given text suitable for TTS."""
-  normalizeTextForTts(text: NonEmptyTrimmedString!): String!
+  normalizeTextForTts(
+    """
+    Raw text to be normalised for TTS — numbers, acronyms, symbols, and dates are rewritten into the form a speech engine can read aloud naturally.
+    """
+    text: NonEmptyTrimmedString! @spectaql(options: [{key: "example", value: "\"Dr. Smith met with 3 clients at 9am on 12/03/2024.\""}])
+  ): String! @spectaql(options: [{key: "example", value: "\"Doctor Smith met with three clients at nine A M on December third, twenty twenty-four.\""}])
 }
 
 """
@@ -39,14 +55,20 @@ Structured explanation of one word as it is used in a specific context.
 """
 type WordExplanationType {
   """Concise dictionary-style definition of the word as used in context."""
-  meaning: String!
+  meaning: String! @spectaql(options: [{key: "example", value: "\"A sudden strong urge to do something impulsive.\""}])
 
   """Same idea expressed for a younger or non-native reader."""
-  simplifiedExplanation: String!
+  simplifiedExplanation: String! @spectaql(options: [{key: "example", value: "\"A quick feeling that makes you want to do something without thinking.\""}])
 
   """Up to five words meaning roughly the same thing."""
-  synonyms: [String!]!
+  synonyms: [String!]! @spectaql(options: [{key: "example", value: "[\"urge\", \"whim\", \"impulse\", \"instinct\"]"}])
 
   """Up to five words meaning roughly the opposite."""
-  antonyms: [String!]!
+  antonyms: [String!]! @spectaql(options: [{key: "example", value: "[\"hesitation\", \"deliberation\", \"restraint\"]"}])
+}
+
+"""A single (key, value) option accepted by @spectaql."""
+input SpectaqlOption {
+  key: String!
+  value: String!
 }
