@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from src.modules.explain_word.types import WordExplanation
+from strawberry.types.base import get_object_definition
+
+from src.modules.explain_word.types import WordExplanation, WordExplanationType
 
 
 def test_word_explanation_preserves_clean_input() -> None:
@@ -65,3 +67,17 @@ def test_word_explanation_defaults_are_empty_lists() -> None:
 
     assert explanation.synonyms == []
     assert explanation.antonyms == []
+
+
+def test_word_explanation_type_exposes_the_same_fields_as_the_pydantic_model() -> None:
+    pydantic_fields = set(WordExplanation.model_fields.keys())
+    graphql_fields = {
+        field.python_name
+        for field in get_object_definition(WordExplanationType, strict=True).fields
+    }
+
+    assert pydantic_fields == graphql_fields, (
+        "WordExplanation and WordExplanationType fields have drifted. "
+        f"Only on WordExplanation: {sorted(pydantic_fields - graphql_fields)}. "
+        f"Only on WordExplanationType: {sorted(graphql_fields - pydantic_fields)}."
+    )

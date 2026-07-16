@@ -1,17 +1,37 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated
+
+import strawberry
 
 from src.modules.explain_word.agent import explain_word_via_agent
 from src.modules.explain_word.types import WordExplanationType
-from src.utils import LlmError, NonEmptyTrimmedString
+from src.utils import LlmError, NonEmptyTrimmedString, spectaql_example
 
 
 _logger = logging.getLogger(__name__)
 
 
 async def explain_word(
-    word: NonEmptyTrimmedString, context: NonEmptyTrimmedString
+    word: Annotated[
+        NonEmptyTrimmedString,
+        strawberry.argument(
+            description="The single word to explain.",
+            directives=[spectaql_example("impulse")],
+        ),
+    ],
+    context: Annotated[
+        NonEmptyTrimmedString,
+        strawberry.argument(
+            description=(
+                "The sentence or paragraph the word appears in — used to disambiguate its meaning."
+            ),
+            directives=[
+                spectaql_example("She acted on impulse and booked a flight home the same night.")
+            ],
+        ),
+    ],
 ) -> WordExplanationType:
     """explainWord resolver for the GraphQL API"""
 

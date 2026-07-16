@@ -3,6 +3,8 @@ from __future__ import annotations
 import strawberry
 from pydantic import BaseModel, Field, field_validator
 
+from src.utils import spectaql_example
+
 
 def _dedupe_and_cap(values: list[str]) -> list[str]:
     """
@@ -50,8 +52,28 @@ class WordExplanation(BaseModel):
 
 @strawberry.experimental.pydantic.type(
     model=WordExplanation,
-    all_fields=True,
     description="Structured explanation of one word as it is used in a specific context.",
 )
 class WordExplanationType:
     """GraphQL projection of :class:`WordExplanation`."""
+
+    meaning: strawberry.auto = strawberry.field(
+        description="Concise dictionary-style definition of the word as used in context.",
+        directives=[spectaql_example("A sudden strong urge to do something impulsive.")],
+    )
+    simplified_explanation: strawberry.auto = strawberry.field(
+        description="Same idea expressed for a younger or non-native reader.",
+        directives=[
+            spectaql_example(
+                "A quick feeling that makes you want to do something without thinking."
+            )
+        ],
+    )
+    synonyms: strawberry.auto = strawberry.field(
+        description="Up to five words meaning roughly the same thing.",
+        directives=[spectaql_example(["urge", "whim", "impulse", "instinct"])],
+    )
+    antonyms: strawberry.auto = strawberry.field(
+        description="Up to five words meaning roughly the opposite.",
+        directives=[spectaql_example(["hesitation", "deliberation", "restraint"])],
+    )

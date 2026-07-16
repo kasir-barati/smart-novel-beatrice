@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import logging
+from typing import Annotated
+
+import strawberry
 
 from src.modules.normalize_tts.agent import normalize_tts_via_agent
 from src.modules.normalize_tts.exceptions import LengthDeviationError
-from src.utils import LlmError, NonEmptyTrimmedString, get_settings
+from src.utils import LlmError, NonEmptyTrimmedString, get_settings, spectaql_example
 
 
 _logger = logging.getLogger(__name__)
@@ -17,7 +20,18 @@ def _length_deviation(input_len: int, output_len: int) -> float:
     return abs(output_len - input_len) / input_len
 
 
-async def normalize_text_for_tts(text: NonEmptyTrimmedString) -> str:
+async def normalize_text_for_tts(
+    text: Annotated[
+        NonEmptyTrimmedString,
+        strawberry.argument(
+            description=(
+                "Raw text to be normalised for TTS — numbers, acronyms, symbols, and dates "
+                "are rewritten into the form a speech engine can read aloud naturally."
+            ),
+            directives=[spectaql_example("Dr. Smith met with 3 clients at 9am on 12/03/2024.")],
+        ),
+    ],
+) -> str:
     """Returns the LLM's TTS-normalised version of ``text``."""
 
     max_deviation = get_settings().normalize_tts.max_length_deviation

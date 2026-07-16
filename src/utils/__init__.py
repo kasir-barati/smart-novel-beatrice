@@ -27,6 +27,12 @@ from src.utils.observability import (
 )
 from src.utils.prompt_loader import load_prompt
 from src.utils.span_filter import ExcludeGraphQLOperationsSpanProcessor
+from src.utils.spectaql_directive import (
+    Spectaql,
+    SpectaqlOption,
+    spectaql_example,
+    spectaql_examples,
+)
 
 
 __all__ = [
@@ -47,9 +53,13 @@ __all__ = [
     "NormalizeTtsOverride",
     "Otel",
     "Settings",
+    "Spectaql",
+    "SpectaqlOption",
     "get_settings",
     "graphql_root_span_hook",
     "instrument_fastapi",
     "load_prompt",
     "setup_observability",
+    "spectaql_example",
+    "spectaql_examples",
 ]

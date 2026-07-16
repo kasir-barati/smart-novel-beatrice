@@ -22,5 +22,7 @@ info:
 introspection:
   schemaFile: ./docs/schema.graphql
   removeTrailingPeriodFromDescriptions: false # Hide fields you never want in public docs (add per-field @spectaqlDirective in the SDL to override).
+  spectaqlDirective:
+    enable: true # SpectaQL reads metadata (examples, undocumented flags, …) from the `@spectaql` directive our SDL emits.
 
 servers: []
