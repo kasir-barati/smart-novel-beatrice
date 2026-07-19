@@ -12,6 +12,12 @@ make init
 docker compose up --build -d
 ```
 
+> [!TIP]
+>
+> Token/s on CPU is ~5–20 tokens/s for a 3B model (llama3.2:3b); a full `WordExplanation` with a few synonyms/antonyms is easily 150–300 tokens = 10–30s at best, more if the model stalls. So when you run it on a node/machine which does NOT have have GPU and limited RAM it will take quite a long time to get the response
+>
+> &mdash; Read more [here](./llm-latency-primer.md).
+
 ## Project structure
 
 ```
