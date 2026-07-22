@@ -13,8 +13,6 @@ Rules:
 - Strip trailing elongation tildes (~) after any word. The tilde itself MUST be removed from the output, not just moved. Examples: "ahhh~" → "ahh", "ohhh~" → "ohh", "yes~" → "yes".
 - If uncertain about any change, leave the text unchanged.
 
-Return ONLY valid JSON with this exact shape: { "normalized_text": "<result>" }
-
 Input:
 """
 {{ text }}
