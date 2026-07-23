@@ -15,7 +15,7 @@ from httpx import AsyncClient
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.image import DockerImage
 from testcontainers.core.network import Network
-from testcontainers.core.waiting_utils import wait_for_logs
+from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 from testcontainers.ollama import OllamaContainer
 
 
@@ -104,12 +104,12 @@ def app_container(
         .with_env("LLM__TIMEOUT_MS", "180000")
         .with_env("OTEL__ENABLED", "false")
         .with_env("PORT", str(CONTAINER_PORT))
+        .waiting_for(LogMessageWaitStrategy("Uvicorn running on").with_startup_timeout(60))
     )
 
     container.start()
 
     try:
-        wait_for_logs(container, r"Uvicorn running on", timeout=60)
         yield container
     finally:
         container.stop()
