@@ -7,7 +7,7 @@ import pytest
 
 from src.modules.normalize_tts.resolver import normalize_text_for_tts
 from src.modules.normalize_tts.types import NormalizedText
-from src.utils import LlmError, NonEmptyTrimmedString, get_settings
+from src.utils import LlmError, get_settings
 from src.utils.exceptions import LLM_ERROR_CODE
 
 
@@ -27,7 +27,7 @@ async def test_normalize_tts_response(monkeypatch: pytest.MonkeyPatch, tmp_path)
         ),
     )
 
-    result = await normalize_text_for_tts(NonEmptyTrimmedString("W-What are you doing here?"))
+    result = await normalize_text_for_tts("W-What are you doing here?")
 
     assert result == "wh... what are you doing here?"
 
@@ -42,7 +42,7 @@ async def test_llm_error_is_wrapped_and_logged(
     )
 
     with caplog.at_level("WARNING"), pytest.raises(LlmError) as excinfo:
-        await normalize_text_for_tts(NonEmptyTrimmedString("hi there"))
+        await normalize_text_for_tts("hi there")
 
     assert excinfo.value.code == LLM_ERROR_CODE
     assert "upstream boom" not in excinfo.value.message

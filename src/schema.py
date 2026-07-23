@@ -9,12 +9,11 @@ NOTE: modules never touch this file — they expose their resolvers and this fil
 from __future__ import annotations
 
 import strawberry
-from strawberry.schema.config import StrawberryConfig
 
 from src.modules.explain_word import WordExplanationType, explain_word
 from src.modules.healthcheck import HealthCheck, healthcheck
 from src.modules.normalize_tts import normalize_text_for_tts
-from src.utils import SCALAR_MAP, GraphqlSpanRenameExtension, spectaql_example
+from src.utils import GraphqlSpanRenameExtension, apply_pydantic_validation, spectaql_example
 
 
 @strawberry.type
@@ -44,9 +43,11 @@ class Mutation:
     )
 
 
+apply_pydantic_validation(Query, Mutation)
+
+
 schema = strawberry.Schema(
     query=Query,
     mutation=Mutation,
     extensions=[GraphqlSpanRenameExtension],
-    config=StrawberryConfig(scalar_map=SCALAR_MAP),
 )

@@ -15,7 +15,6 @@ from src.utils.config import (
 )
 from src.utils.evals import EvalRunner
 from src.utils.exceptions import LLM_ERROR_CODE, AppError, LlmError
-from src.utils.graphql_scalars import SCALAR_MAP, NonEmptyTrimmedString
 from src.utils.graphql_span_rename import (
     GraphqlSpanRenameExtension,
     graphql_root_span_hook,
@@ -26,6 +25,10 @@ from src.utils.observability import (
     setup_observability,
 )
 from src.utils.prompt_loader import load_prompt
+from src.utils.pydantic_validation import (
+    PydanticConstraintsExtension,
+    apply_pydantic_validation,
+)
 from src.utils.span_filter import ExcludeGraphQLOperationsSpanProcessor
 from src.utils.spectaql_directive import (
     Spectaql,
@@ -37,7 +40,6 @@ from src.utils.spectaql_directive import (
 
 __all__ = [
     "LLM_ERROR_CODE",
-    "SCALAR_MAP",
     "AppError",
     "EndpointOverride",
     "EvalRunner",
@@ -49,12 +51,13 @@ __all__ = [
     "LogLevel",
     "Logging",
     "LoggingMode",
-    "NonEmptyTrimmedString",
     "NormalizeTtsOverride",
     "Otel",
+    "PydanticConstraintsExtension",
     "Settings",
     "Spectaql",
     "SpectaqlOption",
+    "apply_pydantic_validation",
     "get_settings",
     "graphql_root_span_hook",
     "instrument_fastapi",

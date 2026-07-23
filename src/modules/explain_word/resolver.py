@@ -4,10 +4,11 @@ import logging
 from typing import Annotated
 
 import strawberry
+from pydantic import StringConstraints
 
 from src.modules.explain_word.agent import explain_word_via_agent
 from src.modules.explain_word.types import WordExplanationType
-from src.utils import LlmError, NonEmptyTrimmedString, spectaql_example
+from src.utils import LlmError, spectaql_example
 
 
 _logger = logging.getLogger(__name__)
@@ -15,17 +16,20 @@ _logger = logging.getLogger(__name__)
 
 async def explain_word(
     word: Annotated[
-        NonEmptyTrimmedString,
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=64),
         strawberry.argument(
-            description="The single word to explain.",
+            description=("The single word to explain. Must be 1..64 characters."),
             directives=[spectaql_example("impulse")],
         ),
     ],
     context: Annotated[
-        NonEmptyTrimmedString,
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=2000),
         strawberry.argument(
             description=(
-                "The sentence or paragraph the word appears in — used to disambiguate its meaning."
+                "The sentence or paragraph the word appears in — used to disambiguate its "
+                "meaning. Must be 1..2000 characters."
             ),
             directives=[
                 spectaql_example("She acted on impulse and booked a flight home the same night.")

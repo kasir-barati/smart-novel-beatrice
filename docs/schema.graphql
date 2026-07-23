@@ -20,28 +20,23 @@ type Mutation {
   Return a structured explanation of a word as it is used in the given context.
   """
   explainWord(
-    """The single word to explain."""
-    word: NonEmptyTrimmedString! @spectaql(options: [{key: "example", value: "\"impulse\""}])
+    """The single word to explain. Must be 1..64 characters."""
+    word: String! @spectaql(options: [{key: "example", value: "\"impulse\""}])
 
     """
-    The sentence or paragraph the word appears in — used to disambiguate its meaning.
+    The sentence or paragraph the word appears in — used to disambiguate its meaning. Must be 1..2000 characters.
     """
-    context: NonEmptyTrimmedString! @spectaql(options: [{key: "example", value: "\"She acted on impulse and booked a flight home the same night.\""}])
+    context: String! @spectaql(options: [{key: "example", value: "\"She acted on impulse and booked a flight home the same night.\""}])
   ): WordExplanationType!
 
   """Return an LLM-normalised version of the given text suitable for TTS."""
   normalizeTextForTts(
     """
-    Raw text to be normalised for TTS — numbers, acronyms, symbols, and dates are rewritten into the form a speech engine can read aloud naturally.
+    Raw text to be normalised for TTS — numbers, acronyms, symbols, and dates are rewritten into the form a speech engine can read aloud naturally. Must be 1..4000 characters.
     """
-    text: NonEmptyTrimmedString! @spectaql(options: [{key: "example", value: "\"Dr. Smith met with 3 clients at 9am on 12/03/2024.\""}])
+    text: String! @spectaql(options: [{key: "example", value: "\"Dr. Smith met with 3 clients at 9am on 12/03/2024.\""}])
   ): String! @spectaql(options: [{key: "example", value: "\"Doctor Smith met with three clients at nine A M on December third, twenty twenty-four.\""}])
 }
-
-"""
-String scalar that trims leading/trailing whitespace and rejects empty or whitespace-only values.
-"""
-scalar NonEmptyTrimmedString
 
 type Query {
   """

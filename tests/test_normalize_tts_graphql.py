@@ -12,7 +12,7 @@ pytestmark = pytest.mark.asyncio
 
 
 NORMALIZE_TTS_MUTATION = """
-    mutation NormalizeTts($text: NonEmptyTrimmedString!) {
+    mutation NormalizeTts($text: String!) {
         normalizeTextForTts(text: $text)
     }
 """
@@ -42,8 +42,8 @@ async def test_normalize_text_for_tts_returns_string(
     assert payload
 
 
-async def test_empty_input_is_rejected_by_scalar(http_client: AsyncClient) -> None:
-    """Whitespace-only input never even reaches the resolver."""
+async def test_empty_input_is_rejected(http_client: AsyncClient) -> None:
+    """Whitespace-only input is rejected before reaching the LLM."""
 
     response = await http_client.post(
         "/graphql",
@@ -54,6 +54,25 @@ async def test_empty_input_is_rejected_by_scalar(http_client: AsyncClient) -> No
     )
 
     body = response.json()
-    assert body.get("data") is None
     assert body["errors"], body
-    assert any("NonEmptyTrimmedString" in e["message"] for e in body["errors"])
+    message = body["errors"][0]["message"]
+    assert "text" in message
+    assert "at least 1 character" in message
+
+
+async def test_input_over_max_length_is_rejected(http_client: AsyncClient) -> None:
+    """Input longer than the 4000-char cap is rejected before reaching the LLM."""
+
+    response = await http_client.post(
+        "/graphql",
+        json={
+            "query": NORMALIZE_TTS_MUTATION,
+            "variables": {"text": "a" * 4001},
+        },
+    )
+
+    body = response.json()
+    assert body["errors"], body
+    message = body["errors"][0]["message"]
+    assert "text" in message
+    assert "at most 4000 characters" in message
