@@ -1,4 +1,4 @@
-# smart-novel-beatrice
+# Beatrice
 
 Python service exposing a **GraphQL API** for LLM-powered features used by [smart-novel](https://github.com/kasir-barati/smart-novel).
 
@@ -73,10 +73,6 @@ All configuration is via environment variables (see [`.env.example`](../.env.exa
 | `LOGGING__MODE`     | `JSON` or `PLAIN_TEXT`                                                        |
 | `OTEL__ENABLED`     | Set to `false` to disable OpenTelemetry export                                |
 | `OTEL__EXPORTER_OTLP_ENDPOINT` | OTLP HTTP endpoint (e.g. `http://otel-collector:4318`)             |
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for local setup, project layout, and the testing philosophy.
 
 ## References
 

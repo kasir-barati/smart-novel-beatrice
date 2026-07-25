@@ -26,6 +26,25 @@ Populated per-request by :func:`graphql_root_span_hook`.
 """
 
 
+APP_USER_ID_HEADER: bytes = b"x-app-user-id"
+"""
+Opaque per-user identifier forwarded by callers.
+
+The header is intentionally *not* validated: Beatrice never authenticates the caller. Whatever value arrives is echoed onto the current span as ``enduser.id`` for cost attribution and audit. If the caller sends nothing, the attribute is simply omitted.
+"""
+
+
+def _extract_app_user_id(scope: dict[str, Any]) -> str | None:
+    """Return the ``x-app-user-id`` header value, ``None`` if unset/blank."""
+
+    for key, value in scope.get("headers", ()):
+        if key.lower() == APP_USER_ID_HEADER:
+            decoded = value.decode("latin-1", errors="replace").strip()
+            return decoded or None
+
+    return None
+
+
 def graphql_root_span_hook(span: Span, scope: dict[str, Any]) -> None:
     """
     Capture *span* as the current request's root span for later renaming.
@@ -37,6 +56,11 @@ def graphql_root_span_hook(span: Span, scope: dict[str, Any]) -> None:
         return
 
     _root_span.set(span)
+
+    app_user_id = _extract_app_user_id(scope)
+
+    if app_user_id is not None:
+        span.set_attribute("enduser.id", app_user_id)
 
 
 def _get_operation_label(

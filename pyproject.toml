@@ -105,6 +105,7 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
+    "--capture=tee-sys",  # Capture stdout/stderr terminal in realtime.
 ]
 asyncio_mode = "auto"
 markers = [

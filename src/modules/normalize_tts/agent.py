@@ -16,6 +16,7 @@ from src.modules.normalize_tts.types import NormalizedText
 from src.utils import Settings, get_settings, load_prompt
 
 
+AGENT_NAME = "normalize_tts"
 PROMPT_VERSION = "v1"
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 settings = get_settings()
@@ -51,6 +52,7 @@ def build_agent(settings: Settings) -> Agent[None, NormalizedText]:
 
     return Agent(
         model,
+        name=AGENT_NAME,
         output_type=NativeOutput(NormalizedText),
         model_settings=model_settings,
     )
@@ -66,6 +68,17 @@ async def normalize_tts_via_agent(text: str) -> NormalizedText:
     """Calls LLM and returns the TTS-normalised text."""
 
     prompt = load_prompt(_PROMPTS_DIR, PROMPT_VERSION, text=text)
-    result = await _AGENT.run(prompt)
+
+    # Attach prompt-template metadata to the pydantic-ai agent span so telemetry
+    # can distinguish outputs from different prompt versions without having to
+    # inspect the prompt string itself. pydantic-ai emits gen_ai.usage.*,
+    # gen_ai.request.model, gen_ai.provider.name automatically via instrument=True.
+    result = await _AGENT.run(
+        prompt,
+        metadata={
+            "prompt.template.name": AGENT_NAME,
+            "prompt.template.version": PROMPT_VERSION,
+        },
+    )
 
     return result.output

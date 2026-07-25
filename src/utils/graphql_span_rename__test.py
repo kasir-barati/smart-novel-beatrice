@@ -184,3 +184,63 @@ async def test_hook_ignores_non_http_scopes(
 
     span_names = {span.name for span in exporter.get_finished_spans()}
     assert "POST /graphql" in span_names
+
+
+async def test_hook_sets_enduser_id_from_x_app_user_id_header(
+    tracer_setup: tuple[trace.Tracer, InMemorySpanExporter],
+    isolated_root_span: None,
+) -> None:
+    tracer, exporter = tracer_setup
+
+    with tracer.start_as_current_span("POST /graphql") as server_span:
+        graphql_root_span_hook(
+            server_span,
+            {
+                "type": "http",
+                "headers": [(b"x-app-user-id", b"user-42"), (b"content-type", b"application/json")],
+            },
+        )
+        await _schema.execute("query GetPing { ping }")
+
+    spans = {span.name: span for span in exporter.get_finished_spans()}
+    server = spans["GetPing query"]
+    assert server.attributes is not None
+    assert server.attributes.get("enduser.id") == "user-42"
+
+
+async def test_hook_omits_enduser_id_when_header_missing(
+    tracer_setup: tuple[trace.Tracer, InMemorySpanExporter],
+    isolated_root_span: None,
+) -> None:
+    tracer, exporter = tracer_setup
+
+    with tracer.start_as_current_span("POST /graphql") as server_span:
+        graphql_root_span_hook(
+            server_span,
+            {"type": "http", "headers": [(b"content-type", b"application/json")]},
+        )
+        await _schema.execute("query GetPing { ping }")
+
+    spans = {span.name: span for span in exporter.get_finished_spans()}
+    server = spans["GetPing query"]
+    assert server.attributes is not None
+    assert "enduser.id" not in server.attributes
+
+
+async def test_hook_ignores_blank_x_app_user_id_header(
+    tracer_setup: tuple[trace.Tracer, InMemorySpanExporter],
+    isolated_root_span: None,
+) -> None:
+    tracer, exporter = tracer_setup
+
+    with tracer.start_as_current_span("POST /graphql") as server_span:
+        graphql_root_span_hook(
+            server_span,
+            {"type": "http", "headers": [(b"x-app-user-id", b"   ")]},
+        )
+        await _schema.execute("query GetPing { ping }")
+
+    spans = {span.name: span for span in exporter.get_finished_spans()}
+    server = spans["GetPing query"]
+    assert server.attributes is not None
+    assert "enduser.id" not in server.attributes

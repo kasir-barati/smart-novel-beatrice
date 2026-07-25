@@ -16,6 +16,7 @@ from src.modules.explain_word.types import WordExplanation
 from src.utils import Settings, get_settings, load_prompt
 
 
+AGENT_NAME = "explain_word"
 PROMPT_VERSION = "v1"
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 settings = get_settings()
@@ -51,6 +52,7 @@ def build_agent(settings: Settings) -> Agent[None, WordExplanation]:
 
     return Agent(
         model,
+        name=AGENT_NAME,
         output_type=NativeOutput(WordExplanation),
         model_settings=model_settings,
     )
@@ -66,6 +68,13 @@ async def explain_word_via_agent(word: str, context: str) -> WordExplanation:
     """Calls LLM and returns the explanation of the word in the given context."""
 
     prompt = load_prompt(_PROMPTS_DIR, PROMPT_VERSION, word=word, context=context)
-    result = await _AGENT.run(prompt)
+
+    result = await _AGENT.run(
+        prompt,
+        metadata={
+            "prompt.template.name": AGENT_NAME,
+            "prompt.template.version": PROMPT_VERSION,
+        },
+    )
 
     return result.output

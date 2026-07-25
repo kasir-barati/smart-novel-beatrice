@@ -17,6 +17,7 @@ from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from pydantic_ai import Agent
 
 from src.utils.config import LoggingMode, Settings
 from src.utils.graphql_span_rename import graphql_root_span_hook
@@ -108,6 +109,9 @@ def _configure_tracing(settings: Settings, version: str) -> None:
 
     # HTTPX must be instrumented BEFORE any AsyncClient is created (pydantic-ai creates one internally when the first agent is instantiated).
     HTTPXClientInstrumentor().instrument()
+
+    # Turn on pydantic-ai's GenAI OTel instrumentation for every Agent in the process. Emits gen_ai.* span attributes (agent name, provider, model, input/output tokens) via the global TracerProvider we just installed. No-op when OTel is disabled because the global TracerProvider stays as the default NoOp provider and pydantic-ai's spans go nowhere.
+    Agent.instrument_all(True)
 
 
 def setup_observability(settings: Settings, version: str) -> None:
