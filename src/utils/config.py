@@ -4,6 +4,7 @@ Application configuration — every knob comes from an environment variable.
 
 from __future__ import annotations
 
+import socket
 import tempfile
 import tomllib
 from enum import StrEnum
@@ -196,6 +197,13 @@ class Settings(BaseSettings):
     service_name: str = Field(
         default="beatrice",
         description="Reported to OTel and used as a general service identifier.",
+    )
+    instance_id: str = Field(
+        default_factory=socket.gethostname,
+        description=(
+            "Identifies this replica in logs (Beatrice runs replicated). Override via "
+            "INSTANCE_ID — e.g. the pod name in Kubernetes — when the hostname isn't useful."
+        ),
     )
 
     @property

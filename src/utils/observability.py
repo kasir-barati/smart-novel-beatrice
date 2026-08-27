@@ -18,6 +18,7 @@ from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace import format_span_id, format_trace_id
 from pydantic_ai import Agent
 
 from src.utils.config import LoggingMode, Settings
@@ -50,6 +51,13 @@ class JsonFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
+
+        # Correlate this log line with the active OTel trace/span, when there is one, so
+        # a log can be linked back to the request/message that produced it.
+        span_context = trace.get_current_span().get_span_context()
+        if span_context.is_valid:
+            payload["trace_id"] = format_trace_id(span_context.trace_id)
+            payload["span_id"] = format_span_id(span_context.span_id)
 
         # Preserve any extras the caller attached via `extra={...}`.
         for key, value in record.__dict__.items():

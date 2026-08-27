@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -18,6 +19,7 @@ import httpx
 from src.modules.audio.callback_urls import CallbackUrlNotAllowedError, validate_callback_url
 from src.modules.audio.provider import build_provider
 from src.modules.audio.rabbitmq import QUEUE_ARGUMENTS
+from src.modules.audio.redact import redact_presigned_url
 from src.modules.audio.retry import decide_retry
 from src.modules.audio.types import GenerateAudioJob, SynthesizedAudio, SynthesizeErrorCode
 from src.utils import RabbitMq, Settings, get_settings
@@ -179,8 +181,16 @@ async def _fetch_presigned_upload_url(
         response = await client.post(gen_upload_url, headers=headers)
         response.raise_for_status()
 
-    payload = response.json()
-    return payload["url"]
+    presigned_url = response.json()["url"]
+    _logger.info(
+        "Obtained presigned upload URL",
+        extra={
+            "job_id": job_id,
+            "state": "uploading",
+            "redacted_presigned_url": redact_presigned_url(presigned_url),
+        },
+    )
+    return presigned_url
 
 
 async def upload_job(
@@ -229,6 +239,25 @@ def _attempt_of(message: aio_pika.abc.AbstractIncomingMessage) -> int:
     return int(attempt) if isinstance(attempt, int | float | str) else 1
 
 
+def _queue_wait_seconds(message: aio_pika.abc.AbstractIncomingMessage) -> float | None:
+    """
+    Seconds between this delivery's own `timestamp` header and now. `None` if the
+    header is missing or unparseable rather than raising — a logging concern should
+    never be able to break message processing.
+    """
+
+    raw_timestamp = (message.headers or {}).get("timestamp")
+    if not isinstance(raw_timestamp, str):
+        return None
+
+    try:
+        enqueued_at = datetime.fromisoformat(raw_timestamp)
+    except ValueError:
+        return None
+
+    return (datetime.now(UTC) - enqueued_at).total_seconds()
+
+
 async def _requeue_for_retry(
     message: aio_pika.abc.AbstractIncomingMessage,
     *,
@@ -236,10 +265,15 @@ async def _requeue_for_retry(
     settings: RabbitMq,
     attempt: int,
 ) -> None:
-    """Republish with `x-attempt` incremented — a fresh delivery, not the same one redelivered."""
+    """
+    Republish with `x-attempt` incremented — a fresh delivery, not the same one
+    redelivered. `timestamp` is refreshed too, so `_queue_wait_seconds` measures this
+    delivery's own wait, not time elapsed since the very first attempt.
+    """
 
     headers = dict(message.headers or {})
     headers["x-attempt"] = attempt + 1
+    headers["timestamp"] = datetime.now(UTC).isoformat()
     retry_message = aio_pika.Message(
         body=message.body,
         headers=headers,
@@ -264,24 +298,64 @@ async def _send_to_dlq(
     await channel.default_exchange.publish(dlq_message, routing_key=settings.dlq_name)
 
 
+def _job_log_extra(
+    job: GenerateAudioJob,
+    *,
+    state: str,
+    attempt: int,
+    settings: Settings,
+    queue_wait_seconds: float | None,
+    processing_seconds: float,
+    **more: Any,
+) -> dict[str, Any]:
+    """Common fields every job-lifecycle log line carries — see REQUIREMENTS.md step 7."""
+
+    extra: dict[str, Any] = {
+        "job_id": job.job_id,
+        "instance_id": settings.instance_id,
+        "voice": job.voice,
+        "model": settings.tts.default_provider.value,
+        "state": state,
+        "attempt": attempt,
+        "max_attempt": settings.rabbitmq.delivery_limit,
+        "text_character_count": len(job.text),
+        "processing_seconds": round(processing_seconds, 3),
+    }
+    if queue_wait_seconds is not None:
+        extra["queue_wait_seconds"] = round(queue_wait_seconds, 3)
+        extra["total_seconds"] = round(queue_wait_seconds + processing_seconds, 3)
+    extra.update(more)
+    return extra
+
+
 async def _handle_job_failure(
     message: aio_pika.abc.AbstractIncomingMessage,
     exc: Exception,
     *,
     code: SynthesizeErrorCode,
+    state: str,
     job: GenerateAudioJob,
     authorization: str | None,
     channel: aio_pika.abc.AbstractChannel,
-    settings: RabbitMq,
+    settings: Settings,
+    attempt: int,
+    queue_wait_seconds: float | None,
+    processing_seconds: float,
 ) -> None:
+    # Logged unconditionally, before the retry-vs-DLQ decision below — every failure is
+    # recorded here regardless of whether the job goes on to be retried or dropped.
     _logger.warning(
         "generateAudio job failed",
-        extra={
-            "job_id": job.job_id,
-            "error_code": code.value,
-            "exception_type": type(exc).__name__,
-            "exception_message": str(exc),
-        },
+        extra=_job_log_extra(
+            job,
+            state=state,
+            attempt=attempt,
+            settings=settings,
+            queue_wait_seconds=queue_wait_seconds,
+            processing_seconds=processing_seconds,
+            error_code=code.value,
+            error_message=str(exc),
+        ),
         exc_info=exc,
     )
     await report_failed(
@@ -292,22 +366,24 @@ async def _handle_job_failure(
         job_id=job.job_id,
     )
 
-    decision = decide_retry(exc, default_delay_seconds=settings.retry_delay_seconds)
-    attempt = _attempt_of(message)
+    rabbitmq_settings = settings.rabbitmq
+    decision = decide_retry(exc, default_delay_seconds=rabbitmq_settings.retry_delay_seconds)
 
-    if decision.should_retry and attempt < settings.delivery_limit:
+    if decision.should_retry and attempt < rabbitmq_settings.delivery_limit:
         _logger.info(
             "Retrying generateAudio job",
             extra={
                 "job_id": job.job_id,
                 "attempt": attempt,
                 "next_attempt": attempt + 1,
-                "delivery_limit": settings.delivery_limit,
+                "max_attempt": rabbitmq_settings.delivery_limit,
                 "delay_seconds": decision.delay_seconds,
             },
         )
         await asyncio.sleep(decision.delay_seconds)
-        await _requeue_for_retry(message, channel=channel, settings=settings, attempt=attempt)
+        await _requeue_for_retry(
+            message, channel=channel, settings=rabbitmq_settings, attempt=attempt
+        )
         return
 
     _logger.warning(
@@ -315,11 +391,11 @@ async def _handle_job_failure(
         extra={
             "job_id": job.job_id,
             "attempt": attempt,
-            "delivery_limit": settings.delivery_limit,
+            "max_attempt": rabbitmq_settings.delivery_limit,
             "was_retryable": decision.should_retry,
         },
     )
-    await _send_to_dlq(message, channel=channel, settings=settings)
+    await _send_to_dlq(message, channel=channel, settings=rabbitmq_settings)
 
 
 async def handle_message(
@@ -339,6 +415,9 @@ async def handle_message(
         job = GenerateAudioJob.model_validate(body)
         raw_authorization = message.headers.get("authorization") if message.headers else None
         authorization = str(raw_authorization) if raw_authorization is not None else None
+        attempt = _attempt_of(message)
+        queue_wait_seconds = _queue_wait_seconds(message)
+        started_at = time.monotonic()
 
         try:
             audio = await synthesize_job(job, authorization=authorization)
@@ -347,10 +426,14 @@ async def handle_message(
                 message,
                 exc,
                 code=SynthesizeErrorCode.TTS_PROVIDER_ERROR,
+                state="generating",
                 job=job,
                 authorization=authorization,
                 channel=channel,
-                settings=settings.rabbitmq,
+                settings=settings,
+                attempt=attempt,
+                queue_wait_seconds=queue_wait_seconds,
+                processing_seconds=time.monotonic() - started_at,
             )
             return
 
@@ -361,10 +444,14 @@ async def handle_message(
                 message,
                 exc,
                 code=SynthesizeErrorCode.UPLOAD_ERROR,
+                state="uploading",
                 job=job,
                 authorization=authorization,
                 channel=channel,
-                settings=settings.rabbitmq,
+                settings=settings,
+                attempt=attempt,
+                queue_wait_seconds=queue_wait_seconds,
+                processing_seconds=time.monotonic() - started_at,
             )
             return
 
@@ -376,7 +463,15 @@ async def handle_message(
         )
         _logger.info(
             "generateAudio job completed",
-            extra={"job_id": job.job_id, "file_size_bytes": file_size_bytes},
+            extra=_job_log_extra(
+                job,
+                state="completed",
+                attempt=attempt,
+                settings=settings,
+                queue_wait_seconds=queue_wait_seconds,
+                processing_seconds=time.monotonic() - started_at,
+                file_size_bytes=file_size_bytes,
+            ),
         )
 
 

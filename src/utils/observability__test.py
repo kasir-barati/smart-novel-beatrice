@@ -68,6 +68,26 @@ def test_json_formatter_produces_valid_json() -> None:
     assert result["logger"] == "test"
     assert result["custom_attr"] == 42
     assert "timestamp" in result
+    assert "trace_id" not in result
+
+
+def test_json_formatter_adds_trace_and_span_id_when_a_span_is_active() -> None:
+    tracer = TracerProvider().get_tracer("test")
+    with tracer.start_as_current_span("test-span"):
+        record = logging.LogRecord(
+            name="test",
+            level=logging.INFO,
+            pathname="",
+            lineno=0,
+            msg="hi",
+            args=None,
+            exc_info=None,
+        )
+
+        result = json.loads(JsonFormatter().format(record))
+
+    assert len(result["trace_id"]) == 32
+    assert len(result["span_id"]) == 16
 
 
 def test_setup_configures_json_logging(caplog: pytest.LogCaptureFixture) -> None:

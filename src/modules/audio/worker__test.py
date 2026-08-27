@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
 
@@ -496,6 +497,89 @@ async def test_handle_message_sends_to_dlq_once_the_delivery_limit_is_exhausted(
     assert message.acked is True
     assert len(channel.published) == 1
     assert channel.published[0].routing_key == "beatrice.generate_audio.dlq"
+
+
+async def test_handle_message_success_log_contains_all_required_fields(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, caplog: pytest.LogCaptureFixture
+) -> None:
+    audio = SynthesizedAudio(file_path=tmp_path / "out.mp3")
+    monkeypatch.setattr(worker_module, "synthesize_job", _async_return(audio))
+    monkeypatch.setattr(worker_module, "upload_job", _async_return(2048))
+    monkeypatch.setattr(worker_module, "report_completed", _async_noop)
+    message = _message(headers={"timestamp": "2024-01-01T00:00:00+00:00"})
+    channel = _FakeChannel()
+
+    with caplog.at_level("INFO"):
+        await _handle_message(message, channel=channel, settings=_settings(delivery_limit=3))
+
+    record: Any = next(r for r in caplog.records if r.message == "generateAudio job completed")
+    assert record.job_id == "job-1"
+    assert record.instance_id
+    assert record.voice == "qwen-voice-a"
+    assert record.model == "qwen3-tts"
+    assert record.state == "completed"
+    assert record.attempt == 1
+    assert record.max_attempt == 3
+    assert record.text_character_count == len("hello")
+    assert record.queue_wait_seconds >= 0
+    assert record.processing_seconds >= 0
+    assert record.total_seconds >= 0
+    assert record.file_size_bytes == 2048
+
+
+async def test_handle_message_failure_log_contains_all_required_fields(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def _fail(*args: Any, **kwargs: Any) -> SynthesizedAudio:
+        raise _http_status_error(400)  # non-retryable
+
+    monkeypatch.setattr(worker_module, "synthesize_job", _fail)
+    monkeypatch.setattr(worker_module, "report_failed", _async_noop)
+    message = _message(headers={"timestamp": "2024-01-01T00:00:00+00:00"})
+    channel = _FakeChannel()
+
+    with caplog.at_level("WARNING"):
+        await _handle_message(message, channel=channel, settings=_settings(delivery_limit=3))
+
+    record: Any = next(r for r in caplog.records if r.message == "generateAudio job failed")
+    assert record.job_id == "job-1"
+    assert record.instance_id
+    assert record.voice == "qwen-voice-a"
+    assert record.model == "qwen3-tts"
+    assert record.state == "generating"
+    assert record.attempt == 1
+    assert record.max_attempt == 3
+    assert record.text_character_count == len("hello")
+    assert record.queue_wait_seconds >= 0
+    assert record.processing_seconds >= 0
+    assert record.error_code == "TTS_PROVIDER_ERROR"
+    assert record.error_message
+
+
+def test_queue_wait_seconds_returns_none_when_timestamp_header_is_missing() -> None:
+    message = _message()
+
+    result = worker_module._queue_wait_seconds(message)  # type: ignore[arg-type]
+
+    assert result is None
+
+
+def test_queue_wait_seconds_returns_none_when_timestamp_header_is_unparseable() -> None:
+    message = _message(headers={"timestamp": "not-a-date"})
+
+    result = worker_module._queue_wait_seconds(message)  # type: ignore[arg-type]
+
+    assert result is None
+
+
+def test_queue_wait_seconds_computes_elapsed_time_since_the_header() -> None:
+    five_seconds_ago = (datetime.now(UTC) - timedelta(seconds=5)).isoformat()
+    message = _message(headers={"timestamp": five_seconds_ago})
+
+    result = worker_module._queue_wait_seconds(message)  # type: ignore[arg-type]
+
+    assert result is not None
+    assert result >= 5
 
 
 def _http_status_error(status_code: int) -> httpx.HTTPStatusError:
