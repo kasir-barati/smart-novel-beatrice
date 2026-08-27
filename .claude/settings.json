@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if ! make test; then echo 'Unit tests failed - commit blocked. Fix tests before committing (see CONTRIBUTING.md).' >&2; exit 2; fi",
+            "if": "Bash(git commit*)",
+            "timeout": 120,
+            "statusMessage": "Running unit tests before commit..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | grep -E 'prompts/.*\\.jinja2$' >/dev/null && echo '{\"systemMessage\": \"Prompt template changed - run make evals, and if the regression is deliberate, make evals_baseline (see CONTRIBUTING.md).\"}' || true"
+          }
+        ]
+      }
+    ]
+  }
+}

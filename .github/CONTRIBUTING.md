@@ -60,12 +60,16 @@ Three tiers. Each answers a different question. Put each new test in the tier th
    - Test whatever is easy and worthwhile to unit test: pure functions, type validation, resolver logic with the agent mocked out, error mapping, prompt-template rendering, etc.
    - If a test needs Docker or a live LLM to make sense, it is **not** a unit test — move it to integration or evals.
    - Add unit tests generously. They are cheap.
+   - Mock outbound calls at the tier boundary (`httpx` for provider/callback/presigned-URL HTTP, `aio-pika` for RabbitMQ) rather than spinning up real infra.
 2. Integration tests:
    - **Question:** *Do the GraphQL mutations and queries actually work end-to-end against the running app?*
    - Spin up the whole stack, hit the GraphQL endpoint over HTTP, assert on the response shape.
    - Purposefully thin — one happy-path per operation, plus one scalar/validation error path where relevant.
    - Uses [Testcontainers](https://testcontainers.com/).
    - Add an integration test when introducing a new GraphQL operation or when a bug regressed the request/response contract.
+   - For the async pipeline, a worker-consuming-a-queue path is also integration-tier, even with no GraphQL operation involved. Use the shared fixtures in `tests/conftest.py` rather than hand-rolled doubles:
+     - `wiremock` / `wiremock_internal_url` stand in for the client-owned callback endpoints (`genUploadUrl`, `statusCallbackUrl`) — stub a response via `wiremock.stub(...)` and assert on what Beatrice actually sent via `wiremock.requests_for(...)`. Stubs and the request journal reset after every test.
+     - `presigned_upload_url_factory` / `minio_verify_client` / `minio_bucket` stand in for the S3-compatible object store — a real MinIO container with a real presigned PUT URL, not a mock of the presign/upload contract. `minio_bucket` is provisioned via the `mc` CLI, matching how a real deployment provisions buckets.
 3. Evals:
    - **Question:** *Are the prompts producing outputs that satisfy our rules? Is the model still doing what we expect?*
    - Use [`pydantic-evals`](https://ai.pydantic.dev/evals/) to run each module's dataset against the live LLM and score each row with a set of structural evaluators.
@@ -81,3 +85,13 @@ Three tiers. Each answers a different question. Put each new test in the tier th
 **Deliberate quality change** (you improved the prompt on purpose, or intentionally changed the model / temperature / rules): review the new `report.json` values, then commit the new baseline with: `make evals_baseline`
 
 **Commit the updated baselines in the same PR as the change that caused them**, with a short justification in the commit message.
+
+## Design & Code Philosophy
+
+1. Simpler is better - **do not overcomplicate**.
+2. Prefer **early returns over nested conditionals**.
+3. Use vitest/pytest.
+   - Use [AAA (Arrange, Act, Assert) style of writing test](https://stackoverflow.com/tags/arrange-act-assert/info).
+4. IMPORTANT: Avoid overly defensive programming; avoid `insistence` checks; only manage exceptions when necessary.
+5. Use `uv`; ALWAYS `uv run xxx` NEVER `python3 xxx`.
+6. Use latest version of libraries and idiomatic approaches as of today.

@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import AsyncIterator, Callable, Iterator
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -15,11 +16,15 @@ import docker.errors
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
+from minio import Minio
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.image import DockerImage
 from testcontainers.core.network import Network
-from testcontainers.core.wait_strategies import LogMessageWaitStrategy
+from testcontainers.core.wait_strategies import HttpWaitStrategy, LogMessageWaitStrategy
+from testcontainers.minio import MinioContainer
 from testcontainers.ollama import OllamaContainer
+
+from tests.wiremock import WireMockClient
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -31,6 +36,12 @@ OLLAMA_NETWORK_ALIAS = "ollama"
 OTEL_COLLECTOR_IMAGE = "otel/opentelemetry-collector-contrib:0.110.0"
 OTEL_COLLECTOR_ALIAS = "otel-collector"
 OTEL_COLLECTOR_CONFIG = Path(__file__).resolve().parent / "fixtures" / "otel-collector-config.yaml"
+WIREMOCK_IMAGE = "wiremock/wiremock:3.9.2"
+WIREMOCK_PORT = 8080
+WIREMOCK_NETWORK_ALIAS = "wiremock"
+MINIO_NETWORK_ALIAS = "minio"
+MINIO_TEST_BUCKET = "beatrice-test"
+MC_IMAGE = "minio/mc:latest"
 
 
 def _ensure_ollama_image_exists() -> None:
@@ -172,6 +183,136 @@ async def http_client(app_base_url: str) -> AsyncIterator[AsyncClient]:
 
     async with AsyncClient(base_url=app_base_url, timeout=240.0) as client:
         yield client
+
+
+# ---------------------------------------------------------------------------
+# Callback + object storage doubles (generateAudio pipeline)
+#
+# WireMock stands in for the client-owned callback endpoints (genUploadUrl,
+# statusCallbackUrl) instead of a hand-rolled stub HTTP server. MinIO stands in
+# for the S3-compatible object store: real presigned PUT URLs, not a mock of
+# the presign/upload contract.
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def wiremock_container(docker_network: Network) -> Iterator[DockerContainer]:
+    """WireMock instance reachable from the app container as ``http://wiremock:8080``."""
+
+    container = (
+        DockerContainer(WIREMOCK_IMAGE)
+        .with_command("--global-response-templating --verbose")
+        .with_exposed_ports(WIREMOCK_PORT)
+        .with_network(docker_network)
+        .with_network_aliases(WIREMOCK_NETWORK_ALIAS)
+        .waiting_for(HttpWaitStrategy(WIREMOCK_PORT, "/__admin/mappings"))
+    )
+
+    with container:
+        yield container
+
+
+@pytest.fixture(scope="session")
+def wiremock_internal_url() -> str:
+    """URL Beatrice (on the shared docker network) uses to reach WireMock."""
+
+    return f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}"
+
+
+@pytest.fixture
+def wiremock(wiremock_container: DockerContainer) -> Iterator[WireMockClient]:
+    """Per-test WireMock client. Stubs and the request journal reset after each test."""
+
+    host = wiremock_container.get_container_host_ip()
+    port = wiremock_container.get_exposed_port(WIREMOCK_PORT)
+    client = WireMockClient(admin_base_url=f"http://{host}:{port}")
+
+    yield client
+
+    client.reset_all()
+
+
+@pytest.fixture(scope="session")
+def minio_container(docker_network: Network) -> Iterator[MinioContainer]:
+    """MinIO instance reachable from the app container as ``minio:9000``."""
+
+    container = (
+        MinioContainer().with_network(docker_network).with_network_aliases(MINIO_NETWORK_ALIAS)
+    )
+
+    with container:
+        yield container
+
+
+@pytest.fixture(scope="session")
+def minio_bucket(minio_container: MinioContainer, docker_network: Network) -> str:
+    """
+    Create the test bucket via the ``mc`` CLI (matching how a real deployment
+    provisions buckets), running as a short-lived container on the shared network.
+    """
+
+    setup_command = (
+        f"mc alias set local http://{MINIO_NETWORK_ALIAS}:{minio_container.port} "
+        f"{minio_container.access_key} {minio_container.secret_key} "
+        f"&& mc mb --ignore-existing local/{MINIO_TEST_BUCKET}"
+    )
+    setup_container = (
+        DockerContainer(MC_IMAGE)
+        .with_network(docker_network)
+        .with_kwargs(entrypoint="/bin/sh")
+        .with_command(f'-c "{setup_command}"')
+    )
+    setup_container.start()
+    exit_code = setup_container.get_wrapped_container().wait()["StatusCode"]
+    stdout, stderr = setup_container.get_logs()
+    setup_container.stop()
+
+    if exit_code != 0:
+        raise RuntimeError(
+            f"mc bucket setup failed (exit {exit_code}):\n{stdout.decode(errors='replace')}"
+            f"\n{stderr.decode(errors='replace')}"
+        )
+
+    return MINIO_TEST_BUCKET
+
+
+@pytest.fixture(scope="session")
+def minio_verify_client(minio_container: MinioContainer) -> Minio:
+    """Host-reachable client for asserting on what actually landed in the bucket."""
+
+    return minio_container.get_client()
+
+
+PresignedUploadUrlFactory = Callable[[str], str]
+
+
+@pytest.fixture(scope="session")
+def presigned_upload_url_factory(
+    minio_container: MinioContainer, minio_bucket: str
+) -> PresignedUploadUrlFactory:
+    """
+    Returns a factory that mints a presigned PUT URL against the ``minio`` network
+    alias — reachable from the app container, unlike the host-exposed port
+    ``minio_verify_client`` uses. Presigning is a local HMAC computation and needs
+    no network call, but the client must be given ``region`` explicitly — without
+    it, the SDK looks the region up over HTTP, and "minio" only resolves inside
+    the docker network, not from this (host-side) test process.
+    """
+
+    internal_client = Minio(
+        endpoint=f"{MINIO_NETWORK_ALIAS}:{minio_container.port}",
+        access_key=minio_container.access_key,
+        secret_key=minio_container.secret_key,
+        secure=False,
+        region="us-east-1",
+    )
+
+    def _make(object_name: str) -> str:
+        return internal_client.presigned_put_object(
+            minio_bucket, object_name, expires=timedelta(minutes=10)
+        )
+
+    return _make
 
 
 # ---------------------------------------------------------------------------
