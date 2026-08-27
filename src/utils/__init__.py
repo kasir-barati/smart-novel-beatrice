@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from src.utils.config import (
     EndpointOverride,
+    GeminiTtsSettings,
     Llm,
     Logging,
     LoggingMode,
     LogLevel,
     NormalizeTtsOverride,
     Otel,
+    QwenTtsSettings,
     Settings,
+    Tts,
     get_settings,
 )
 from src.utils.evals import EvalRunner
@@ -44,6 +47,7 @@ __all__ = [
     "EndpointOverride",
     "EvalRunner",
     "ExcludeGraphQLOperationsSpanProcessor",
+    "GeminiTtsSettings",
     "GraphqlSpanRenameExtension",
     "JsonFormatter",
     "Llm",
@@ -54,9 +58,11 @@ __all__ = [
     "NormalizeTtsOverride",
     "Otel",
     "PydanticConstraintsExtension",
+    "QwenTtsSettings",
     "Settings",
     "Spectaql",
     "SpectaqlOption",
+    "Tts",
     "apply_pydantic_validation",
     "get_settings",
     "graphql_root_span_hook",

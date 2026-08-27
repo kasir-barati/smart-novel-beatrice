@@ -4,6 +4,7 @@ Application configuration — every knob comes from an environment variable.
 
 from __future__ import annotations
 
+import tempfile
 import tomllib
 from enum import StrEnum
 from functools import lru_cache
@@ -75,6 +76,40 @@ class NormalizeTtsOverride(EndpointOverride):
     )
 
 
+class GeminiTtsSettings(BaseSettings):
+    """Google Cloud Text-to-Speech."""
+
+    base_url: str = Field(default="https://texttospeech.googleapis.com")
+    api_key: str = Field(default="", description="Sent as the X-Goog-Api-Key header.")
+    timeout_ms: int = Field(default=30_000, ge=1_000)
+
+
+class QwenTtsSettings(BaseSettings):
+    """
+    Qwen3-TTS, served through a third-party OpenAI-compatible inference host.
+
+    The exact REST surface varies by host — DeepInfra and empiriolabs.ai document
+    ``GET /v1/voices``, but vLLM-Omni's OpenAI-compatible shim uses
+    ``GET /v1/audio/voices`` instead. ``voices_path``/``synthesize_path`` default to
+    DeepInfra's documented routes; override via env if pointed at a different host.
+    """
+
+    base_url: str = Field(default="https://api.deepinfra.com")
+    api_key: str = Field(default="")
+    model: str = Field(default="Qwen/Qwen3-TTS")
+    voices_path: str = Field(default="/v1/voices")
+    synthesize_path: str = Field(default="/v1/audio/speech")
+    timeout_ms: int = Field(default=30_000, ge=1_000)
+
+
+class Tts(BaseSettings):
+    """TTS provider abstraction layer configuration."""
+
+    output_dir: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()) / "beatrice-audio")
+    qwen: QwenTtsSettings = Field(default_factory=QwenTtsSettings)
+    gemini: GeminiTtsSettings = Field(default_factory=GeminiTtsSettings)
+
+
 class Otel(BaseSettings):
     """OpenTelemetry configuration"""
 
@@ -113,6 +148,7 @@ class Settings(BaseSettings):
     llm: Llm = Field(default_factory=Llm)
     explain_word: EndpointOverride = Field(default_factory=EndpointOverride)
     normalize_tts: NormalizeTtsOverride = Field(default_factory=NormalizeTtsOverride)
+    tts: Tts = Field(default_factory=Tts)
     otel: Otel = Field(default_factory=Otel)
 
 
