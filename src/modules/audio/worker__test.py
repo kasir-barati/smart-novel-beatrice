@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,16 @@ from src.modules.audio.worker import (
     report_progress,
     synthesize_job,
 )
+from src.utils import get_settings
+
+
+@pytest.fixture(autouse=True)
+def _allow_client_example_com(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[None]:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", "client.example.com")
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 class _FakeHttpxResponse:
@@ -84,6 +95,30 @@ async def test_report_progress_does_not_raise_on_callback_failure(
         authorization=None,
         job_id="job-1",
     )
+
+
+async def test_report_progress_refuses_a_host_not_on_the_allow_list(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """
+    The URL was already validated once by generateAudio, but this process only has the
+    queue message to go on — it must not trust that validation carried across the hop.
+    """
+
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
+    )
+
+    await report_progress(
+        "https://evil.example.com/status",
+        status="generating",
+        percent=0,
+        authorization=None,
+        job_id="job-1",
+    )
+
+    assert calls == []
 
 
 class _FakeProvider:

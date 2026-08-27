@@ -98,37 +98,6 @@ def test_validate_text_length_rejects_text_over_limit(
         resolver._validate_text_length("too long")
 
 
-def test_validate_callback_url_accepts_an_allow_listed_https_host(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", "client.example.com")
-
-    result = resolver._validate_callback_url("https://client.example.com/webhook")
-
-    assert result == "https://client.example.com/webhook"
-
-
-def test_validate_callback_url_rejects_non_http_scheme(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", "client.example.com")
-
-    with pytest.raises(ValueError, match="absolute http"):
-        resolver._validate_callback_url("ftp://client.example.com/webhook")
-
-
-def test_validate_callback_url_rejects_a_host_not_on_the_allow_list(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setenv("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", "client.example.com")
-
-    with pytest.raises(ValueError, match="not in the allow-list"):
-        resolver._validate_callback_url("https://evil.example.com/webhook")
-
-
 class _FakeHttpxResponse:
     def __init__(self, status_code: int) -> None:
         self.status_code = status_code

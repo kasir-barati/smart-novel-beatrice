@@ -16,6 +16,7 @@ from typing import Any
 import aio_pika
 import httpx
 
+from src.modules.audio.callback_urls import CallbackUrlNotAllowedError, validate_callback_url
 from src.modules.audio.provider import build_provider
 from src.modules.audio.rabbitmq import QUEUE_ARGUMENTS
 from src.modules.audio.types import GenerateAudioJob, SynthesizedAudio
@@ -41,7 +42,28 @@ async def report_progress(
     authorization: str | None,
     job_id: str,
 ) -> None:
-    """Best-effort — a flaky callback endpoint shouldn't fail job processing."""
+    """
+    Best-effort — a flaky callback endpoint shouldn't fail job processing.
+
+    Re-validates the host allow-list before calling out: this URL was already checked
+    once by the `generateAudio` mutation, but that check doesn't carry across the
+    RabbitMQ hop — this process has no way to know the message wasn't tampered with or
+    published some other way, so it re-checks rather than trusting the queue.
+    """
+
+    try:
+        validate_callback_url(status_callback_url)
+    except CallbackUrlNotAllowedError as exc:
+        _logger.warning(
+            "Refusing to report progress: statusCallbackUrl failed allow-list re-validation",
+            extra={
+                "job_id": job_id,
+                "status": status,
+                "percent": percent,
+                "exception_message": str(exc),
+            },
+        )
+        return
 
     headers = {"authorization": authorization} if authorization is not None else {}
 

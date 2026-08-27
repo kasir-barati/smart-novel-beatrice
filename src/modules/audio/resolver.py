@@ -9,7 +9,6 @@ import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
-from urllib.parse import urlsplit
 
 import httpx
 import strawberry
@@ -17,6 +16,7 @@ from pydantic import StringConstraints
 from pydantic.functional_validators import AfterValidator
 from strawberry.types import Info
 
+from src.modules.audio.callback_urls import validate_callback_url
 from src.modules.audio.exceptions import InvalidVoiceError
 from src.modules.audio.provider import build_provider
 from src.modules.audio.rabbitmq import publish_generate_audio_job
@@ -62,20 +62,6 @@ def _validate_text_length(value: str) -> str:
     return value
 
 
-def _validate_callback_url(value: str) -> str:
-    parsed = urlsplit(value)
-
-    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
-        raise ValueError("must be an absolute http(s) URL.")
-
-    allowed_hosts = get_settings().generate_audio.callback.allowed_hosts_list
-
-    if parsed.hostname not in allowed_hosts:
-        raise ValueError(f"host '{parsed.hostname}' is not in the allow-list.")
-
-    return value
-
-
 @strawberry.type(description="Result of queuing a generateAudio job.")
 class GenerateAudioResult:
     job_id: str = strawberry.field(
@@ -103,7 +89,7 @@ async def generate_audio(
     ],
     gen_upload_url: Annotated[
         str,
-        AfterValidator(_validate_callback_url),
+        AfterValidator(validate_callback_url),
         strawberry.argument(
             description=(
                 "Callback Beatrice POSTs to when it needs a presigned upload URL. Host must be "
@@ -113,7 +99,7 @@ async def generate_audio(
     ],
     status_callback_url: Annotated[
         str,
-        AfterValidator(_validate_callback_url),
+        AfterValidator(validate_callback_url),
         strawberry.argument(
             description=(
                 "Callback Beatrice POSTs progress/state updates to. Host must be in the "
