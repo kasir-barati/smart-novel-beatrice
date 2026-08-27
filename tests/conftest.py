@@ -183,6 +183,39 @@ def app_container(
         container.stop()
 
 
+@pytest.fixture
+def worker_container(
+    app_image: str,
+    docker_network: Network,
+    wiremock_container: DockerContainer,
+    rabbitmq_container: DockerContainer,
+    rabbitmq_internal_url: str,
+) -> Iterator[DockerContainer]:
+    """
+    The `generateAudio` worker (`src/worker.py`), on the same image as `app_container`
+    but running the consumer entrypoint instead of the GraphQL server.
+
+    Function-scoped, unlike `app_container` — a session-scoped worker would race the
+    step-3-style tests that inspect a message directly off the queue via `queue.get()`,
+    consuming it before the test can. Only tests that actually exercise the worker
+    (steps 4-6) should request this fixture.
+    """
+
+    container = (
+        DockerContainer(app_image)
+        .with_command("python -m src.worker")
+        .with_network(docker_network)
+        .with_env("TTS__QWEN__BASE_URL", f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}")
+        .with_env("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", WIREMOCK_NETWORK_ALIAS)
+        .with_env("RABBITMQ__CONNECTION_STRING", rabbitmq_internal_url)
+        .with_env("OTEL__ENABLED", "false")
+        .waiting_for(LogMessageWaitStrategy("worker ready").with_startup_timeout(30))
+    )
+
+    with container:
+        yield container
+
+
 @pytest.fixture(scope="session")
 def app_base_url(app_container: DockerContainer) -> str:
     host = app_container.get_container_host_ip()

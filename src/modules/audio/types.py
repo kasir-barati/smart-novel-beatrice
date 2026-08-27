@@ -4,6 +4,7 @@ Domain types for the TTS provider abstraction layer.
 
 from __future__ import annotations
 
+from enum import StrEnum
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -47,3 +48,13 @@ class GenerateAudioJob(BaseModel):
     voice: str
     gen_upload_url: str = Field(alias="genUploadUrl")
     status_callback_url: str = Field(alias="statusCallbackUrl")
+
+
+class SynthesizeErrorCode(StrEnum):
+    """Error codes reported to `statusCallbackUrl` on a `{status: "failed"}` update."""
+
+    TTS_PROVIDER_ERROR = "TTS_PROVIDER_ERROR"
+    """Synthesis (the TTS provider call) failed."""
+
+    UPLOAD_ERROR = "UPLOAD_ERROR"
+    """Fetching a presigned URL from `genUploadUrl`, or the PUT to it, failed."""

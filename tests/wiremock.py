@@ -5,6 +5,7 @@ Minimal WireMock admin API client for stubbing and inspecting callback requests
 
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass
 from typing import Any
 
@@ -21,12 +22,22 @@ class WireMockClient:
         url_path_pattern: str,
         status: int = 200,
         json_body: dict[str, Any] | None = None,
+        body_bytes: bytes | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
-        """Register a stub mapping. Matches are additive until ``reset_all`` is called."""
+        """
+        Register a stub mapping. Matches are additive until ``reset_all`` is called.
+        ``body_bytes`` is for a raw (non-JSON) response body, e.g. standing in for a TTS
+        provider's binary audio response.
+        """
 
         response: dict[str, Any] = {"status": status}
         if json_body is not None:
             response["jsonBody"] = json_body
+        if body_bytes is not None:
+            response["base64Body"] = base64.b64encode(body_bytes).decode()
+        if headers is not None:
+            response["headers"] = headers
 
         httpx.post(
             f"{self.admin_base_url}/__admin/mappings",

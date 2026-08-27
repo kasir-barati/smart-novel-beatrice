@@ -4,11 +4,16 @@ Integration test for the ``generateAudio`` GraphQL mutation.
 
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import Callable
 
 import aio_pika
 import pytest
 from httpx import AsyncClient
+from minio import Minio
+from minio.error import S3Error
+from testcontainers.core.container import DockerContainer
 
 from tests.wiremock import WireMockClient
 
@@ -129,3 +134,57 @@ async def test_generate_audio_rejects_a_callback_host_not_on_the_allow_list(
     body = response.json()
     assert body["errors"], body
     assert "allow-list" in body["errors"][0]["message"]
+
+
+async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
+    http_client: AsyncClient,
+    wiremock: WireMockClient,
+    worker_container: DockerContainer,
+    minio_verify_client: Minio,
+    minio_bucket: str,
+    presigned_upload_url_factory: Callable[[str], str],
+) -> None:
+    """
+    Drives a job end-to-end through steps 3-5: generateAudio publishes it, the worker
+    consumes it, synthesizes against a stubbed provider, and uploads to a real MinIO
+    presigned URL obtained through a stubbed genUploadUrl.
+    """
+
+    _stub_voices(wiremock)
+    audio_bytes = b"fake-audio-bytes-from-the-stubbed-provider"
+    wiremock.stub("POST", "/v1/audio/speech", status=200, body_bytes=audio_bytes)
+    object_name = "pipeline-test.mp3"
+    presigned_url = presigned_upload_url_factory(object_name)
+    wiremock.stub("POST", "/upload", status=200, json_body={"url": presigned_url})
+    wiremock.stub("POST", "/status-callback", status=200, json_body={"ok": True})
+
+    response = await http_client.post(
+        "/graphql", json={"query": GENERATE_AUDIO_MUTATION, "variables": _variables()}
+    )
+
+    assert response.status_code == 202, response.text
+
+    stat = await _wait_for_object(minio_verify_client, minio_bucket, object_name)
+
+    assert stat.size == len(audio_bytes)
+    assert minio_verify_client.get_object(minio_bucket, object_name).read() == audio_bytes
+
+    status_updates = [json.loads(r["body"]) for r in wiremock.requests_for("/status-callback")]
+    completed = next(u for u in status_updates if u.get("status") == "completed")
+    assert completed == {"status": "completed", "fileSizeBytes": len(audio_bytes)}
+    statuses_seen = [u["status"] for u in status_updates]
+    assert statuses_seen == ["queued", "generating", "generating", "uploading", "completed"]
+
+
+async def _wait_for_object(client: Minio, bucket: str, object_name: str, timeout: float = 20.0):
+    """Poll MinIO for an object the worker uploads asynchronously, out-of-band."""
+
+    deadline = asyncio.get_event_loop().time() + timeout
+
+    while True:
+        try:
+            return client.stat_object(bucket, object_name)
+        except S3Error:
+            if asyncio.get_event_loop().time() >= deadline:
+                raise
+            await asyncio.sleep(0.5)
