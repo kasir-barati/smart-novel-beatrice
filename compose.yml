@@ -9,6 +9,7 @@ services:
       # Override values in .env that only make sense inside the compose network.
       LLM__BASE_URL: http://ollama:11434/v1
       OTEL__EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      RABBITMQ__CONNECTION_STRING: amqp://guest:guest@rabbitmq:5672/
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
@@ -16,6 +17,8 @@ services:
         condition: service_healthy
       otel-healthcheck:
         condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
 
   ollama:
     build:
@@ -31,6 +34,18 @@ services:
       timeout: 5s
       retries: 5
       start_period: 45s
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports:
+      - 5672:5672
+      - 15672:15672 # management UI
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.155.0

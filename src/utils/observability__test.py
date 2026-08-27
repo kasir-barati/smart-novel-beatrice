@@ -111,6 +111,11 @@ def test_tracing_installs_operation_filter_when_enabled(
         "HTTPXClientInstrumentor",  # HTTPXClientInstrumentor().instrument() is a global side-effect we don't want to run in this test; the tracing branch calls it near the end.
         lambda: type("_FakeInstrumentor", (), {"instrument": lambda self: None})(),
     )
+    monkeypatch.setattr(
+        observability,
+        "AioPikaInstrumentor",  # same global-side-effect reasoning as HTTPXClientInstrumentor above.
+        lambda: type("_FakeInstrumentor", (), {"instrument": lambda self: None})(),
+    )
     settings = Settings(otel=Otel(enabled=True))
 
     setup_observability(settings, version="0.0.0")  # act

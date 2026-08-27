@@ -42,6 +42,9 @@ WIREMOCK_NETWORK_ALIAS = "wiremock"
 MINIO_NETWORK_ALIAS = "minio"
 MINIO_TEST_BUCKET = "beatrice-test"
 MC_IMAGE = "minio/mc:latest"
+RABBITMQ_IMAGE = "rabbitmq:3.13-management-alpine"
+RABBITMQ_PORT = 5672
+RABBITMQ_NETWORK_ALIAS = "rabbitmq"
 
 
 def _ensure_ollama_image_exists() -> None:
@@ -142,6 +145,8 @@ def app_container(
     ollama_container: OllamaContainer,
     otel_collector_container: DockerContainer,
     wiremock_container: DockerContainer,
+    rabbitmq_container: DockerContainer,
+    rabbitmq_internal_url: str,
 ) -> Iterator[DockerContainer]:
     """
     Start the beatrice container on the shared network with Ollama + collector.
@@ -149,6 +154,8 @@ def app_container(
     ``TTS__QWEN__BASE_URL`` points at WireMock rather than the real DeepInfra API —
     the default TTS provider is qwen3-tts, and `audioVoices`/`generateAudio` tests
     stub its response there instead of hitting a live third-party endpoint.
+    ``GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS`` allow-lists the WireMock alias so
+    `generateAudio`'s genUploadUrl/statusCallbackUrl can point at it in tests.
     """
 
     container = (
@@ -159,6 +166,8 @@ def app_container(
         .with_env("LLM__MODEL", OLLAMA_MODEL)
         .with_env("LLM__TIMEOUT_MS", "180000")
         .with_env("TTS__QWEN__BASE_URL", f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}")
+        .with_env("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", WIREMOCK_NETWORK_ALIAS)
+        .with_env("RABBITMQ__CONNECTION_STRING", rabbitmq_internal_url)
         .with_env("OTEL__ENABLED", "true")
         .with_env("OTEL__EXPORTER_OTLP_ENDPOINT", f"http://{OTEL_COLLECTOR_ALIAS}:4318")
         .with_env("OTEL__TRACES_SAMPLER", "parentbased_always_on")
@@ -319,6 +328,38 @@ def presigned_upload_url_factory(
         )
 
     return _make
+
+
+@pytest.fixture(scope="session")
+def rabbitmq_container(docker_network: Network) -> Iterator[DockerContainer]:
+    """RabbitMQ instance reachable from the app container as ``rabbitmq:5672``."""
+
+    container = (
+        DockerContainer(RABBITMQ_IMAGE)
+        .with_exposed_ports(RABBITMQ_PORT)
+        .with_network(docker_network)
+        .with_network_aliases(RABBITMQ_NETWORK_ALIAS)
+        .waiting_for(LogMessageWaitStrategy("Server startup complete").with_startup_timeout(60))
+    )
+
+    with container:
+        yield container
+
+
+@pytest.fixture(scope="session")
+def rabbitmq_internal_url() -> str:
+    """URL Beatrice (on the shared docker network) uses to reach RabbitMQ."""
+
+    return f"amqp://guest:guest@{RABBITMQ_NETWORK_ALIAS}:{RABBITMQ_PORT}/"
+
+
+@pytest.fixture
+def rabbitmq_host_url(rabbitmq_container: DockerContainer) -> str:
+    """URL the test process (on the host) uses to reach RabbitMQ, for consuming/asserting."""
+
+    host = rabbitmq_container.get_container_host_ip()
+    port = rabbitmq_container.get_exposed_port(RABBITMQ_PORT)
+    return f"amqp://guest:guest@{host}:{port}/"
 
 
 # ---------------------------------------------------------------------------

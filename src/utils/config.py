@@ -119,6 +119,46 @@ class Tts(BaseSettings):
     gemini: GeminiTtsSettings = Field(default_factory=GeminiTtsSettings)
 
 
+class CallbackSettings(BaseSettings):
+    """
+    Outbound calls to `genUploadUrl`/`statusCallbackUrl` — hosts the client controls.
+
+    ``allowed_hosts`` is a plain (comma-separated) string, not ``list[str]``: pydantic-settings
+    JSON-decodes any list-typed field read from an env var before field validators run, so a
+    human-friendly comma-separated env var isn't achievable with a list field here.
+    """
+
+    allowed_hosts: str = Field(
+        default="",
+        description=(
+            "Comma-separated allow-listed hosts for outbound genUploadUrl/statusCallbackUrl "
+            "calls. Beatrice makes an HTTP call to a URL it didn't choose, so any host not "
+            "listed here is rejected."
+        ),
+    )
+
+    @property
+    def allowed_hosts_list(self) -> list[str]:
+        return [host.strip() for host in self.allowed_hosts.split(",") if host.strip()]
+
+
+class GenerateAudio(BaseSettings):
+    """`generateAudio` mutation configuration."""
+
+    max_text_length: int = Field(default=4000, ge=1)
+    callback: CallbackSettings = Field(default_factory=CallbackSettings)
+
+
+class RabbitMq(BaseSettings):
+    connection_string: str = Field(default="amqp://guest:guest@rabbitmq:5672/")
+    queue_name: str = Field(default="beatrice.generate_audio")
+    prefetch_count: int = Field(
+        default=5,
+        ge=1,
+        description="QoS for the worker consumer (steps 4-6) — not used on the publish side.",
+    )
+
+
 class Otel(BaseSettings):
     """OpenTelemetry configuration"""
 
@@ -158,6 +198,8 @@ class Settings(BaseSettings):
     explain_word: EndpointOverride = Field(default_factory=EndpointOverride)
     normalize_tts: NormalizeTtsOverride = Field(default_factory=NormalizeTtsOverride)
     tts: Tts = Field(default_factory=Tts)
+    generate_audio: GenerateAudio = Field(default_factory=GenerateAudio)
+    rabbitmq: RabbitMq = Field(default_factory=RabbitMq)
     otel: Otel = Field(default_factory=Otel)
 
 

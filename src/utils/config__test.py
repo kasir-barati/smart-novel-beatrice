@@ -5,7 +5,7 @@ from collections.abc import Iterator
 
 import pytest
 
-from src.utils import LoggingMode, LogLevel, Settings, get_settings
+from src.utils import CallbackSettings, LoggingMode, LogLevel, Settings, get_settings
 
 
 @pytest.fixture(autouse=True)
@@ -72,3 +72,37 @@ def test_get_settings_is_cached(monkeypatch: pytest.MonkeyPatch, tmp_path) -> No
     assert first is result
     assert first.port == 5000
     assert result.port == 5000
+
+
+def test_generate_audio_settings_default_from_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GENERATE_AUDIO__MAX_TEXT_LENGTH", "9000")
+    monkeypatch.setenv(
+        "GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", "client.example.com, other.example.com"
+    )
+    monkeypatch.setenv("RABBITMQ__CONNECTION_STRING", "amqp://user:pass@rabbit:5672/")
+    monkeypatch.setenv("RABBITMQ__PREFETCH_COUNT", "10")
+
+    result = Settings()
+
+    assert result.generate_audio.max_text_length == 9000
+    assert result.generate_audio.callback.allowed_hosts_list == [
+        "client.example.com",
+        "other.example.com",
+    ]
+    assert result.rabbitmq.connection_string == "amqp://user:pass@rabbit:5672/"
+    assert result.rabbitmq.prefetch_count == 10
+
+
+def test_callback_settings_allowed_hosts_list_defaults_empty() -> None:
+    result = CallbackSettings()
+
+    assert result.allowed_hosts_list == []
+
+
+def test_callback_settings_allowed_hosts_list_splits_and_strips_whitespace() -> None:
+    result = CallbackSettings(allowed_hosts="a.example.com,  b.example.com ,")
+
+    assert result.allowed_hosts_list == ["a.example.com", "b.example.com"]

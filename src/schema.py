@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import strawberry
 
-from src.modules.audio import resolve_audio_voices
+from src.modules.audio import GenerateAudioResult, generate_audio, resolve_audio_voices
 from src.modules.explain_word import WordExplanationType, explain_word
 from src.modules.healthcheck import HealthCheck, healthcheck
 from src.modules.normalize_tts import normalize_text_for_tts
@@ -49,6 +49,14 @@ class Mutation:
                 "Doctor Smith met with three clients at nine A M on December third, twenty twenty-four."
             )
         ],
+    )
+    generate_audio: GenerateAudioResult = strawberry.mutation(
+        resolver=generate_audio,
+        description=(
+            "Queue a TTS synthesis job. Publishes to RabbitMQ and returns immediately "
+            "(HTTP 202) with a jobId — actual synthesis and upload happen asynchronously; "
+            "progress and completion are reported via statusCallbackUrl."
+        ),
     )
 
 

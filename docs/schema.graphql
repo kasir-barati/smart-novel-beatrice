@@ -1,6 +1,14 @@
 """Metadata for SpectaQL docs (examples, undocumented flags, …)."""
 directive @spectaql(options: [SpectaqlOption!]!) on OBJECT | FIELD_DEFINITION | ARGUMENT_DEFINITION | SCALAR | INPUT_OBJECT | INPUT_FIELD_DEFINITION | INTERFACE | UNION | ENUM | ENUM_VALUE
 
+"""Result of queuing a generateAudio job."""
+type GenerateAudioResult {
+  """
+  UUID identifying this synthesis job. Use it to correlate statusCallbackUrl updates.
+  """
+  jobId: String! @spectaql(options: [{key: "example", value: "\"550e8400-e29b-41d4-a716-446655440000\""}])
+}
+
 """Snapshot of service liveness and configured model."""
 type HealthCheck {
   """Always true when this resolver executes."""
@@ -36,6 +44,29 @@ type Mutation {
     """
     text: String! @spectaql(options: [{key: "example", value: "\"Dr. Smith met with 3 clients at 9am on 12/03/2024.\""}])
   ): String! @spectaql(options: [{key: "example", value: "\"Doctor Smith met with three clients at nine A M on December third, twenty twenty-four.\""}])
+
+  """
+  Queue a TTS synthesis job. Publishes to RabbitMQ and returns immediately (HTTP 202) with a jobId — actual synthesis and upload happen asynchronously; progress and completion are reported via statusCallbackUrl.
+  """
+  generateAudio(
+    """
+    Text to synthesize. Length is capped by the GENERATE_AUDIO__MAX_TEXT_LENGTH env var.
+    """
+    text: String! @spectaql(options: [{key: "example", value: "\"The graffiti was ephemeral.\""}])
+
+    """Voice name — must be one returned by audioVoices."""
+    voice: String!
+
+    """
+    Callback Beatrice POSTs to when it needs a presigned upload URL. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list.
+    """
+    genUploadUrl: String!
+
+    """
+    Callback Beatrice POSTs progress/state updates to. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list.
+    """
+    statusCallbackUrl: String!
+  ): GenerateAudioResult!
 }
 
 type Query {

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from src.utils.config import (
+    CallbackSettings,
     EndpointOverride,
     GeminiTtsSettings,
+    GenerateAudio,
     Llm,
     Logging,
     LoggingMode,
@@ -12,6 +14,7 @@ from src.utils.config import (
     NormalizeTtsOverride,
     Otel,
     QwenTtsSettings,
+    RabbitMq,
     Settings,
     Tts,
     TtsProviderName,
@@ -45,10 +48,12 @@ from src.utils.spectaql_directive import (
 __all__ = [
     "LLM_ERROR_CODE",
     "AppError",
+    "CallbackSettings",
     "EndpointOverride",
     "EvalRunner",
     "ExcludeGraphQLOperationsSpanProcessor",
     "GeminiTtsSettings",
+    "GenerateAudio",
     "GraphqlSpanRenameExtension",
     "JsonFormatter",
     "Llm",
@@ -60,6 +65,7 @@ __all__ = [
     "Otel",
     "PydanticConstraintsExtension",
     "QwenTtsSettings",
+    "RabbitMq",
     "Settings",
     "Spectaql",
     "SpectaqlOption",

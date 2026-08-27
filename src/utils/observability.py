@@ -12,6 +12,7 @@ from typing import Any
 
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.instrumentation.aio_pika import AioPikaInstrumentor
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.sdk.resources import Resource
@@ -109,6 +110,10 @@ def _configure_tracing(settings: Settings, version: str) -> None:
 
     # HTTPX must be instrumented BEFORE any AsyncClient is created (pydantic-ai creates one internally when the first agent is instantiated).
     HTTPXClientInstrumentor().instrument()
+
+    # Injects the W3C traceparent into RabbitMQ message headers on publish, and continues the
+    # trace from those headers on consume — same "instrument before first use" requirement.
+    AioPikaInstrumentor().instrument()
 
     # Turn on pydantic-ai's GenAI OTel instrumentation for every Agent in the process. Emits gen_ai.* span attributes (agent name, provider, model, input/output tokens) via the global TracerProvider we just installed. No-op when OTel is disabled because the global TracerProvider stays as the default NoOp provider and pydantic-ai's spans go nowhere.
     Agent.instrument_all(True)
