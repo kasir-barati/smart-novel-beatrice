@@ -56,6 +56,12 @@ repos:
         types: [python]
         pass_filenames: false
         verbose: true
+      - id: flake8-aaa
+        name: "flake8-aaa (AAA structure — sync tests only, see CONTRIBUTING.md)"
+        entry: uv run flake8
+        language: system
+        files: __test\.py$
+        verbose: true
       - id: graphql-schema
         name: "export GraphQL SDL (docs/schema.graphql)"
         entry: bash -c 'make schema && git add docs/schema.graphql'

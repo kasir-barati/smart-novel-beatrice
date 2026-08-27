@@ -115,6 +115,7 @@ schema:
 ## Runs ruff linter on all files
 lint_check:
 	uv run ruff check .
+	uv run flake8 .
 	uv run python local-setup/scripts/check_private_imports.py
 
 ## Apply linter to all files
@@ -122,6 +123,7 @@ lint:
 	uv run ruff format .
 	uv run pyright src
 	uv run ruff check --fix .
+	uv run flake8 .
 	uv run python local-setup/scripts/check_private_imports.py
 
 ## Remove build artefacts, caches, .venv, __pycache__

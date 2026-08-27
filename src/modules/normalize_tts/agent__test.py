@@ -39,18 +39,18 @@ def test_build_agent_prefers_endpoint_override_model(
     monkeypatch.setenv("NORMALIZE_TTS__MODEL", "qwen2.5:7b")
     monkeypatch.setenv("LLM__MODEL", "qwen2.5:0.5b")
 
-    agent = build_agent(Settings())
+    result = build_agent(Settings())
 
-    assert _model_name_of(agent) == "qwen2.5:7b"
+    assert _model_name_of(result) == "qwen2.5:7b"
 
 
 def test_build_agent_falls_back_to_global_model(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("LLM__MODEL", "qwen2.5:0.5b")
 
-    agent = build_agent(Settings())
+    result = build_agent(Settings())
 
-    assert _model_name_of(agent) == "qwen2.5:0.5b"
+    assert _model_name_of(result) == "qwen2.5:0.5b"
 
 
 def test_build_agent_converts_timeout_ms_to_seconds(
@@ -59,9 +59,9 @@ def test_build_agent_converts_timeout_ms_to_seconds(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("LLM__TIMEOUT_MS", "42000")
 
-    agent = build_agent(Settings())
+    result = build_agent(Settings())
 
-    assert _model_settings_of(agent).get("timeout") == pytest.approx(42.0)
+    assert _model_settings_of(result).get("timeout") == pytest.approx(42.0)
 
 
 def test_build_agent_omits_temperature_by_default(
@@ -69,9 +69,9 @@ def test_build_agent_omits_temperature_by_default(
 ) -> None:
     monkeypatch.chdir(tmp_path)
 
-    agent = build_agent(Settings())
+    result = build_agent(Settings())
 
-    assert "temperature" not in _model_settings_of(agent)
+    assert "temperature" not in _model_settings_of(result)
 
 
 def test_build_agent_applies_temperature_override(
@@ -80,9 +80,9 @@ def test_build_agent_applies_temperature_override(
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("NORMALIZE_TTS__TEMPERATURE", "0.1")
 
-    agent = build_agent(Settings())
+    result = build_agent(Settings())
 
-    assert _model_settings_of(agent).get("temperature") == pytest.approx(0.1)
+    assert _model_settings_of(result).get("temperature") == pytest.approx(0.1)
 
 
 async def test_normalize_tts_via_agent_returns_parsed_output(

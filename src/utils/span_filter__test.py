@@ -32,7 +32,7 @@ def test_forwards_span_when_operation_name_not_excluded() -> None:
     inner = MagicMock(spec=SpanProcessor)
     processor = ExcludeGraphQLOperationsSpanProcessor(inner=inner)
 
-    processor.on_end(_make_span("explainWord"))
+    processor.on_end(_make_span("explainWord"))  # act
 
     inner.on_end.assert_called_once()
 
@@ -48,7 +48,7 @@ def test_drops_excluded_query_operation(operation_name: str) -> None:
     inner = MagicMock(spec=SpanProcessor)
     processor = ExcludeGraphQLOperationsSpanProcessor(inner=inner)
 
-    processor.on_end(_make_span(operation_name))
+    processor.on_end(_make_span(operation_name))  # act
 
     inner.on_end.assert_not_called()
 
@@ -59,7 +59,7 @@ def test_forwards_span_without_operation_name() -> None:
     inner = MagicMock(spec=SpanProcessor)
     processor = ExcludeGraphQLOperationsSpanProcessor(inner=inner)
 
-    processor.on_end(_make_span(None, name="HTTP GET http://ollama:11434/v1/chat"))
+    processor.on_end(_make_span(None, name="HTTP GET http://ollama:11434/v1/chat"))  # act
 
     inner.on_end.assert_called_once()
 
@@ -67,10 +67,10 @@ def test_forwards_span_without_operation_name() -> None:
 def test_drops_non_post_graphql_spans() -> None:
     inner = MagicMock(spec=SpanProcessor)
     processor = ExcludeGraphQLOperationsSpanProcessor(inner=inner)
-
     processor.on_end(_make_span(None, name="GET /graphql"))
     processor.on_end(_make_span(None, name="HEAD /graphql"))
-    processor.on_end(_make_span(None, name="OPTIONS /graphql"))
+
+    processor.on_end(_make_span(None, name="OPTIONS /graphql"))  # act
 
     inner.on_end.assert_not_called()
 
@@ -78,10 +78,10 @@ def test_drops_non_post_graphql_spans() -> None:
 def test_drops_graphql_asgi_child_event_spans() -> None:
     inner = MagicMock(spec=SpanProcessor)
     processor = ExcludeGraphQLOperationsSpanProcessor(inner=inner)
-
     processor.on_end(_make_span(None, name="POST /graphql http receive"))
     processor.on_end(_make_span(None, name="POST /graphql http send"))
-    processor.on_end(_make_span(None, name="GET /graphql http send"))
+
+    processor.on_end(_make_span(None, name="GET /graphql http send"))  # act
 
     inner.on_end.assert_not_called()
 
@@ -90,7 +90,7 @@ def test_post_graphql_span_is_kept() -> None:
     inner = MagicMock(spec=SpanProcessor)
     processor = ExcludeGraphQLOperationsSpanProcessor(inner=inner)
 
-    processor.on_end(_make_span("explainWord", name="POST /graphql"))
+    processor.on_end(_make_span("explainWord", name="POST /graphql"))  # act
 
     inner.on_end.assert_called_once()
 
@@ -99,9 +99,9 @@ def test_lifecycle_methods_delegate_to_inner() -> None:
     inner = MagicMock(spec=SpanProcessor)
     inner.force_flush.return_value = True
     processor = ExcludeGraphQLOperationsSpanProcessor(inner=inner)
-
     processor.on_start(cast(Span, MagicMock()), None)
     processor.shutdown()
+
     result = processor.force_flush(5_000)
 
     inner.on_start.assert_called_once()

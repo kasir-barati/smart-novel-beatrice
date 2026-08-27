@@ -34,6 +34,7 @@ dev = [
     "pydantic-evals>=0.0.14",
     "pyyaml>=6.0",
     "pre-commit>=4.0",
+    "flake8-aaa>=0.17.2",
 ]
 
 [build-system]

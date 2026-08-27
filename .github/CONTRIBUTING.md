@@ -92,6 +92,8 @@ Three tiers. Each answers a different question. Put each new test in the tier th
 2. Prefer **early returns over nested conditionals**.
 3. Use vitest/pytest.
    - Use [AAA (Arrange, Act, Assert) style of writing test](https://stackoverflow.com/tags/arrange-act-assert/info).
+   - [`flake8-aaa`](https://pypi.org/project/flake8-aaa/) (`make lint_check` / `make lint`, config in `.flake8`) checks AAA structure via AST — it identifies the Act block semantically (a `result = ...` assignment, `with pytest.raises(...)`, or a `# act` comment) rather than counting blank lines, and is Black/ruff-format-compatible.
+   - **Known gap, confirmed against 0.17.2 (latest on PyPI):** it only checks `def test_...`, not `async def test_...` — there's no `AsyncFunctionDef` handling in its visitor at all, so it silently skips async tests entirely. Since this suite runs under `asyncio_mode = auto` and most tests are async, a clean `flake8-aaa` run is not proof of AAA compliance — it's only checking whatever sync test functions exist. Review async tests for AAA by eye; the violation this misses most often is an `assert` buried inside a mock/stub closure defined in the Arrange block (asserting on the request payload from inside the `httpx.MockTransport` handler, for example) instead of pulled out into the Assert block.
 4. IMPORTANT: Avoid overly defensive programming; avoid `insistence` checks; only manage exceptions when necessary.
 5. Use `uv`; ALWAYS `uv run xxx` NEVER `python3 xxx`.
 6. Use latest version of libraries and idiomatic approaches as of today.

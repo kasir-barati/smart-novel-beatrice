@@ -1,0 +1,4 @@
+[flake8]
+select = AAA
+filename = *__test.py
+exclude = .venv,dist,build

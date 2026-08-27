@@ -7,12 +7,12 @@ from src.utils import get_settings
 
 
 def test_build_provider_returns_qwen_for_qwen_name() -> None:
-    provider = build_provider(TtsProviderName.QWEN3_TTS, get_settings())
+    result = build_provider(TtsProviderName.QWEN3_TTS, get_settings())
 
-    assert isinstance(provider, Qwen3TtsProvider)
+    assert isinstance(result, Qwen3TtsProvider)
 
 
 def test_build_provider_returns_gemini_for_gemini_name() -> None:
-    provider = build_provider(TtsProviderName.GEMINI_TTS, get_settings())
+    result = build_provider(TtsProviderName.GEMINI_TTS, get_settings())
 
-    assert isinstance(provider, GeminiTtsProvider)
+    assert isinstance(result, GeminiTtsProvider)
