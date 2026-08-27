@@ -95,3 +95,4 @@ Three tiers. Each answers a different question. Put each new test in the tier th
 4. IMPORTANT: Avoid overly defensive programming; avoid `insistence` checks; only manage exceptions when necessary.
 5. Use `uv`; ALWAYS `uv run xxx` NEVER `python3 xxx`.
 6. Use latest version of libraries and idiomatic approaches as of today.
+7. For a class that owns an `httpx.AsyncClient`, accept an optional `transport: httpx.AsyncBaseTransport | None = None` constructor param (forwarded to the client) so tests can inject `httpx.MockTransport` without patching internals. Type it `AsyncBaseTransport`, not `BaseTransport` — pyright rejects the sync variant against `AsyncClient`.
