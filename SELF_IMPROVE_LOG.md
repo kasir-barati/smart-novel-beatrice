@@ -15,3 +15,11 @@ Two process gaps surfaced, both fixed:
 2. After invoking `graphql-api-tester`, spawned a stray placeholder agent trying to "wait" for it — wasteful and unnecessary, since the completion notification arrives on its own. Added a line to `PROCESS.md` step 4 against doing that again.
 
 `graphql-api-tester` also confirmed a live-dev-server limitation worth remembering for steps 3-6: operations that call the real Qwen3-TTS/Gemini-TTS APIs will fail against `docker compose up` with a real `401`/`403` unless a real provider API key is in `.env` — expected, not a bug, and not something to "fix" by acquiring credentials. WireMock-backed integration tests plus unit tests with a fake provider remain the actual correctness signal; the live dev-server check is only useful for schema-shape/wiring checks that don't depend on the provider call succeeding.
+
+## Step 3 — `generateAudio` Mutation (accept/validate/publish) — 2026-08-27
+
+The largest step so far (validation, RabbitMQ publish with quorum queue + OTel instrumentation, a best-effort callback) but the per-step scoping held up fine — no need to split it further than `REQUIREMENTS.md` already had it.
+
+Confirmed the step 2 process fixes actually stuck: no stray "wait for the agent" spawn this time, and the graphql-api-tester dev-API-key limitation from step 2's log entry recurred exactly as predicted (voice validation needs a live provider call, same 401) — briefed the tester on it upfront in the prompt this time instead of discovering it again, and it correctly worked around it (used a made-up voice name, noted which case it hit) rather than reporting a false FAIL.
+
+One real gotcha, added to `.github/CONTRIBUTING.md` (item 9): pydantic-settings JSON-decodes any `list`-typed `BaseSettings` field read from an env var *before* field validators run, so a custom comma-split `field_validator` is dead code — confirmed by testing (`CallbackSettings.allowed_hosts` as `list[str]]` raised `SettingsError` on `"a,b"`, and reproduced the same failure on an unrelated top-level list field to confirm it's a pydantic-settings behavior, not a nesting artifact). Fixed by typing the field `str` and exposing a computed `allowed_hosts_list` property instead. Worth remembering for `x-attempt`/`x-delivery-limit` env vars in step 6 if any of those end up list-shaped.
