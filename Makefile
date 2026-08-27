@@ -3,7 +3,7 @@ SHELL         := /bin/bash
 .DEFAULT_GOAL := help
 
 .ONESHELL:
-.PHONY: help init start_dev test integration_test evals evals_baseline _run_evals schema lint_check lint clean
+.PHONY: help init start_dev start_worker test integration_test evals evals_baseline _run_evals schema lint_check lint clean
 
 # ---- Configurable knobs -----------------------------------------------------
 PORT      ?= 3000
@@ -33,6 +33,10 @@ start_dev:
 ## Starts the app in production mode
 start:
 	uv run --no-sync python src/main.py
+
+## Starts the generateAudio worker (consumes jobs from RabbitMQ)
+start_worker:
+	uv run python src/worker.py
 
 ## Runs unit tests
 test:

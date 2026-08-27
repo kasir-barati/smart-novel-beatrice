@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Voice(BaseModel):
@@ -31,3 +31,19 @@ class SynthesizedAudio(BaseModel):
     """
 
     file_path: Path = Field(description="Absolute path to the generated audio file on local disk.")
+
+
+class GenerateAudioJob(BaseModel):
+    """
+    A `generateAudio` job message as consumed from the queue. Field names use the camelCase
+    aliases the `generateAudio` mutation publishes (`src/modules/audio/resolver.py`), since the
+    message body is that mutation's input verbatim plus `jobId`.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    job_id: str = Field(alias="jobId")
+    text: str
+    voice: str
+    gen_upload_url: str = Field(alias="genUploadUrl")
+    status_callback_url: str = Field(alias="statusCallbackUrl")
