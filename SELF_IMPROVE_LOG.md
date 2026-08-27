@@ -32,4 +32,14 @@ One deliberate scope call, logged in case it needs revisiting: added `src/worker
 
 Also made a deliberate, explicitly-flagged simplification: message ack/reject uses aio_pika's default `message.process()` behavior (ack on success, reject-without-requeue on any exception) as a placeholder — proper retry/DLQ decisioning (`x-attempt`, `x-delivery-limit`) is step 6's actual job, not something to half-build now.
 
+### Off-cycle: SSRF fix (background security review, between steps 4 and 5)
+
+A background security review flagged that the worker trusted `statusCallbackUrl` off the queue without re-checking the host allow-list — `generateAudio` validates it once at publish time, but that guarantee doesn't survive the RabbitMQ hop into a separate process. Fixed by extracting the check into `src/modules/audio/callback_urls.py`, shared by the resolver and worker. This is exactly the kind of gap `PROCESS.md`/`SELF_IMPROVE.md` don't cover — there's no step in the loop for "a security finding arrived out of band" — and it worked fine as an ad hoc fix-and-commit cycle outside the normal step loop. Not proposing a process change for this; one occurrence isn't a pattern yet.
+
+## Step 5 — Worker Upload & Completion — 2026-08-27
+
+Directly benefited from the off-cycle SSRF fix above: `genUploadUrl` has the exact same trust-boundary shape as `statusCallbackUrl` (validated at publish, read back off the queue by a different process), so it got the same re-validation from the start instead of needing a second security-review round-trip to discover it.
+
+New testing-harness insight, added to `.github/CONTRIBUTING.md`: a worker/consumer fixture used in integration tests must be function-scoped, not session-scoped like the other infra fixtures — a session-scoped worker would race any test asserting on a message directly off the queue (`queue.get()`), consuming it out from under that test. `worker_container` in `tests/conftest.py` is scoped accordingly; only step 5's end-to-end test requests it, leaving step 3's raw-queue-inspection test undisturbed.
+
 No process or CONTRIBUTING.md gaps surfaced this round — first genuinely smooth step since the harness fixes in steps 2-3 landed.
