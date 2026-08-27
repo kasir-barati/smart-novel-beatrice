@@ -23,3 +23,13 @@ The largest step so far (validation, RabbitMQ publish with quorum queue + OTel i
 Confirmed the step 2 process fixes actually stuck: no stray "wait for the agent" spawn this time, and the graphql-api-tester dev-API-key limitation from step 2's log entry recurred exactly as predicted (voice validation needs a live provider call, same 401) — briefed the tester on it upfront in the prompt this time instead of discovering it again, and it correctly worked around it (used a made-up voice name, noted which case it hit) rather than reporting a false FAIL.
 
 One real gotcha, added to `.github/CONTRIBUTING.md` (item 9): pydantic-settings JSON-decodes any `list`-typed `BaseSettings` field read from an env var *before* field validators run, so a custom comma-split `field_validator` is dead code — confirmed by testing (`CallbackSettings.allowed_hosts` as `list[str]]` raised `SettingsError` on `"a,b"`, and reproduced the same failure on an unrelated top-level list field to confirm it's a pydantic-settings behavior, not a nesting artifact). Fixed by typing the field `str` and exposing a computed `allowed_hosts_list` property instead. Worth remembering for `x-attempt`/`x-delivery-limit` env vars in step 6 if any of those end up list-shaped.
+
+## Step 4 — Worker Consume & Synthesize — 2026-08-27
+
+First step with no `### AC` subsection in `REQUIREMENTS.md` at all — just the numbered description and the Test note. Scoped it directly from the numbered steps plus the shared architecture section (which spans steps 3-6); no ambiguity worth stopping to ask about this time.
+
+One deliberate scope call, logged in case it needs revisiting: added `src/worker.py` (a real process entrypoint) and a `make start_worker` target even though the step's Test note only asked for unit-testable functions. Justification: the step description and the shared architecture section explicitly call for "a separate worker process" — without an entrypoint that claim is unbuilt, not just untested. Steps 5-6 extend the same worker, so this seemed like the right point to add it rather than retrofitting later.
+
+Also made a deliberate, explicitly-flagged simplification: message ack/reject uses aio_pika's default `message.process()` behavior (ack on success, reject-without-requeue on any exception) as a placeholder — proper retry/DLQ decisioning (`x-attempt`, `x-delivery-limit`) is step 6's actual job, not something to half-build now.
+
+No process or CONTRIBUTING.md gaps surfaced this round — first genuinely smooth step since the harness fixes in steps 2-3 landed.
