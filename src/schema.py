@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import strawberry
 
+from src.modules.audio import resolve_audio_voices
 from src.modules.explain_word import WordExplanationType, explain_word
 from src.modules.healthcheck import HealthCheck, healthcheck
 from src.modules.normalize_tts import normalize_text_for_tts
@@ -21,6 +22,14 @@ class Query:
     healthcheck: HealthCheck = strawberry.field(
         resolver=healthcheck,
         description="Healthcheck API which returns basic info about the service and if it is running.",
+    )
+    audio_voices: list[str] = strawberry.field(
+        resolver=resolve_audio_voices,
+        description=(
+            "Voice names available for TTS synthesis, from the configured default "
+            "provider. Cached for the process lifetime after the first call. "
+            "English text only for now — this limitation will be addressed later."
+        ),
     )
 
 

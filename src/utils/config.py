@@ -102,10 +102,19 @@ class QwenTtsSettings(BaseSettings):
     timeout_ms: int = Field(default=30_000, ge=1_000)
 
 
+class TtsProviderName(StrEnum):
+    QWEN3_TTS = "qwen3-tts"
+    GEMINI_TTS = "gemini-tts"
+
+
 class Tts(BaseSettings):
     """TTS provider abstraction layer configuration."""
 
     output_dir: Path = Field(default_factory=lambda: Path(tempfile.gettempdir()) / "beatrice-audio")
+    default_provider: TtsProviderName = Field(
+        default=TtsProviderName.QWEN3_TTS,
+        description="Which provider backs audioVoices/generateAudio when the caller doesn't pick one.",
+    )
     qwen: QwenTtsSettings = Field(default_factory=QwenTtsSettings)
     gemini: GeminiTtsSettings = Field(default_factory=GeminiTtsSettings)
 

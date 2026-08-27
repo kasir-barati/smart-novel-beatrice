@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from src.modules.audio.exceptions import TTS_PROVIDER_ERROR_CODE, TtsProviderError
 from src.modules.audio.provider import TtsProvider, TtsProviderName, build_provider
+from src.modules.audio.resolver import resolve_audio_voices
 from src.modules.audio.types import SynthesizedAudio, Voice
 
 
@@ -13,4 +14,5 @@ __all__ = [
     "TtsProviderName",
     "Voice",
     "build_provider",
+    "resolve_audio_voices",
 ]

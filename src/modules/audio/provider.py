@@ -8,13 +8,12 @@ per-voice language metadata, so `language` is rejected outright for that provide
 
 from __future__ import annotations
 
-from enum import StrEnum
 from typing import Protocol
 
 from src.modules.audio.gemini_provider import GeminiTtsProvider
 from src.modules.audio.qwen_provider import Qwen3TtsProvider
 from src.modules.audio.types import SynthesizedAudio, Voice
-from src.utils import Settings
+from src.utils import Settings, TtsProviderName
 
 
 class TtsProvider(Protocol):
@@ -35,11 +34,6 @@ class TtsProvider(Protocol):
     async def aclose(self) -> None:
         """Release the underlying HTTP client."""
         ...
-
-
-class TtsProviderName(StrEnum):
-    QWEN3_TTS = "qwen3-tts"
-    GEMINI_TTS = "gemini-tts"
 
 
 def build_provider(name: TtsProviderName, settings: Settings) -> TtsProvider:

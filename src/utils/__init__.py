@@ -14,6 +14,7 @@ from src.utils.config import (
     QwenTtsSettings,
     Settings,
     Tts,
+    TtsProviderName,
     get_settings,
 )
 from src.utils.evals import EvalRunner
@@ -63,6 +64,7 @@ __all__ = [
     "Spectaql",
     "SpectaqlOption",
     "Tts",
+    "TtsProviderName",
     "apply_pydantic_validation",
     "get_settings",
     "graphql_root_span_hook",

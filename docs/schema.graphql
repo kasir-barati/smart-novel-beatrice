@@ -43,6 +43,11 @@ type Query {
   Healthcheck API which returns basic info about the service and if it is running.
   """
   healthcheck: HealthCheck!
+
+  """
+  Voice names available for TTS synthesis, from the configured default provider. Cached for the process lifetime after the first call. English text only for now — this limitation will be addressed later.
+  """
+  audioVoices: [String!]!
 }
 
 """

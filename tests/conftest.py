@@ -141,9 +141,14 @@ def app_container(
     docker_network: Network,
     ollama_container: OllamaContainer,
     otel_collector_container: DockerContainer,
+    wiremock_container: DockerContainer,
 ) -> Iterator[DockerContainer]:
     """
     Start the beatrice container on the shared network with Ollama + collector.
+
+    ``TTS__QWEN__BASE_URL`` points at WireMock rather than the real DeepInfra API —
+    the default TTS provider is qwen3-tts, and `audioVoices`/`generateAudio` tests
+    stub its response there instead of hitting a live third-party endpoint.
     """
 
     container = (
@@ -153,6 +158,7 @@ def app_container(
         .with_env("LLM__BASE_URL", f"http://{OLLAMA_NETWORK_ALIAS}:11434/v1")
         .with_env("LLM__MODEL", OLLAMA_MODEL)
         .with_env("LLM__TIMEOUT_MS", "180000")
+        .with_env("TTS__QWEN__BASE_URL", f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}")
         .with_env("OTEL__ENABLED", "true")
         .with_env("OTEL__EXPORTER_OTLP_ENDPOINT", f"http://{OTEL_COLLECTOR_ALIAS}:4318")
         .with_env("OTEL__TRACES_SAMPLER", "parentbased_always_on")
