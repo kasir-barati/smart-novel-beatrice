@@ -152,10 +152,24 @@ class GenerateAudio(BaseSettings):
 class RabbitMq(BaseSettings):
     connection_string: str = Field(default="amqp://guest:guest@rabbitmq:5672/")
     queue_name: str = Field(default="beatrice.generate_audio")
+    dlq_name: str = Field(
+        default="beatrice.generate_audio.dlq",
+        description="Where a job lands once it's not retryable, or delivery_limit is exhausted.",
+    )
     prefetch_count: int = Field(
         default=5,
         ge=1,
         description="QoS for the worker consumer (steps 4-6) — not used on the publish side.",
+    )
+    delivery_limit: int = Field(
+        default=3,
+        ge=1,
+        description="Max attempts (tracked via the x-attempt message header) before a job is routed to the DLQ instead of retried again.",
+    )
+    retry_delay_seconds: float = Field(
+        default=30.0,
+        ge=0,
+        description="Backoff before retrying a failed job, unless a Retry-After response header says otherwise.",
     )
 
 

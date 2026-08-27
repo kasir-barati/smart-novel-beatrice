@@ -188,3 +188,66 @@ async def _wait_for_object(client: Minio, bucket: str, object_name: str, timeout
             if asyncio.get_event_loop().time() >= deadline:
                 raise
             await asyncio.sleep(0.5)
+
+
+async def _poll_for_message(
+    queue: aio_pika.abc.AbstractQueue, *, timeout: float
+) -> aio_pika.abc.AbstractIncomingMessage:
+    """
+    `Queue.get()` is a single, non-blocking poll — passing `timeout` only bounds that
+    one RPC call, not how long to wait for a message to arrive — so a delayed publish
+    (a retry, here) needs its own poll loop rather than a single `get()`.
+    """
+
+    deadline = asyncio.get_event_loop().time() + timeout
+
+    while True:
+        message = await queue.get(fail=False, timeout=5)
+        if message is not None:
+            return message
+        if asyncio.get_event_loop().time() >= deadline:
+            raise TimeoutError(f"No message on {queue.name!r} within {timeout}s")
+        await asyncio.sleep(0.5)
+
+
+async def test_generate_audio_exhausts_retries_and_lands_on_the_dlq(
+    http_client: AsyncClient,
+    wiremock: WireMockClient,
+    worker_container: DockerContainer,
+    rabbitmq_host_url: str,
+) -> None:
+    """
+    worker_container is configured (see tests/conftest.py) with a delivery limit of 2
+    and a 1s retry delay, so a synthesis call that always 500s should be retried once
+    and then dead-lettered.
+    """
+
+    _stub_voices(wiremock)
+    wiremock.stub("POST", "/v1/audio/speech", status=500)
+    wiremock.stub("POST", "/status-callback", status=200, json_body={"ok": True})
+
+    response = await http_client.post(
+        "/graphql", json={"query": GENERATE_AUDIO_MUTATION, "variables": _variables()}
+    )
+
+    assert response.status_code == 202, response.text
+
+    connection = await aio_pika.connect_robust(rabbitmq_host_url)
+    try:
+        channel = await connection.channel()
+        dlq = await channel.declare_queue(
+            "beatrice.generate_audio.dlq", durable=True, arguments={"x-queue-type": "quorum"}
+        )
+        incoming = await _poll_for_message(dlq, timeout=15)
+        payload = json.loads(incoming.body)
+        await incoming.ack()
+    finally:
+        await connection.close()
+
+    assert payload["text"] == "hello world"
+    assert incoming.headers["x-attempt"] == 2
+
+    status_updates = [json.loads(r["body"]) for r in wiremock.requests_for("/status-callback")]
+    failed_updates = [u for u in status_updates if u.get("status") == "failed"]
+    assert len(failed_updates) == 2
+    assert all(u["error"]["code"] == "TTS_PROVIDER_ERROR" for u in failed_updates)

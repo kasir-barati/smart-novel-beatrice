@@ -42,6 +42,7 @@ class GeminiTtsProvider:
             raise TtsProviderError(
                 provider=PROVIDER_NAME,
                 message=f"GET /v1/voices -> {response.status_code}",
+                status_code=response.status_code,
             )
 
         payload = response.json()
@@ -63,6 +64,7 @@ class GeminiTtsProvider:
             raise TtsProviderError(
                 provider=PROVIDER_NAME,
                 message=f"POST /v1/text:synthesize -> {response.status_code}",
+                status_code=response.status_code,
             )
 
         audio_bytes = base64.b64decode(response.json()["audioContent"])

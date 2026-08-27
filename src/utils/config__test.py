@@ -84,6 +84,9 @@ def test_generate_audio_settings_default_from_env(
     )
     monkeypatch.setenv("RABBITMQ__CONNECTION_STRING", "amqp://user:pass@rabbit:5672/")
     monkeypatch.setenv("RABBITMQ__PREFETCH_COUNT", "10")
+    monkeypatch.setenv("RABBITMQ__DLQ_NAME", "beatrice.dlq")
+    monkeypatch.setenv("RABBITMQ__DELIVERY_LIMIT", "5")
+    monkeypatch.setenv("RABBITMQ__RETRY_DELAY_SECONDS", "10.5")
 
     result = Settings()
 
@@ -94,6 +97,9 @@ def test_generate_audio_settings_default_from_env(
     ]
     assert result.rabbitmq.connection_string == "amqp://user:pass@rabbit:5672/"
     assert result.rabbitmq.prefetch_count == 10
+    assert result.rabbitmq.dlq_name == "beatrice.dlq"
+    assert result.rabbitmq.delivery_limit == 5
+    assert result.rabbitmq.retry_delay_seconds == pytest.approx(10.5)
 
 
 def test_callback_settings_allowed_hosts_list_defaults_empty() -> None:

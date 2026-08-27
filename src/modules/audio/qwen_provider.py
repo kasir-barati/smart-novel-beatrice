@@ -43,6 +43,7 @@ class Qwen3TtsProvider:
             raise TtsProviderError(
                 provider=PROVIDER_NAME,
                 message=f"GET {self._settings.voices_path} -> {response.status_code}",
+                status_code=response.status_code,
             )
 
         payload = response.json()
@@ -57,6 +58,7 @@ class Qwen3TtsProvider:
             raise TtsProviderError(
                 provider=PROVIDER_NAME,
                 message=f"POST {self._settings.synthesize_path} -> {response.status_code}",
+                status_code=response.status_code,
             )
 
         self._output_dir.mkdir(parents=True, exist_ok=True)

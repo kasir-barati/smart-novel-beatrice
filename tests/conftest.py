@@ -199,6 +199,10 @@ def worker_container(
     step-3-style tests that inspect a message directly off the queue via `queue.get()`,
     consuming it before the test can. Only tests that actually exercise the worker
     (steps 4-6) should request this fixture.
+
+    Retry settings are kept short (not the app's production defaults) so a
+    retry/DLQ-path test doesn't have to wait out a real 30s backoff per attempt; a
+    successful job never touches this logic, so it doesn't affect the happy-path tests.
     """
 
     container = (
@@ -208,6 +212,8 @@ def worker_container(
         .with_env("TTS__QWEN__BASE_URL", f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}")
         .with_env("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", WIREMOCK_NETWORK_ALIAS)
         .with_env("RABBITMQ__CONNECTION_STRING", rabbitmq_internal_url)
+        .with_env("RABBITMQ__DELIVERY_LIMIT", "2")
+        .with_env("RABBITMQ__RETRY_DELAY_SECONDS", "1")
         .with_env("OTEL__ENABLED", "false")
         .waiting_for(LogMessageWaitStrategy("worker ready").with_startup_timeout(30))
     )

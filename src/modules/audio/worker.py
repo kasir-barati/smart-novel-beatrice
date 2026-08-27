@@ -1,8 +1,7 @@
 """
 Worker: consumes `generateAudio` jobs from RabbitMQ, drives synthesis, uploads the
-result, and reports terminal state (REQUIREMENTS.md steps 4-5).
-
-Proper retry/DLQ handling (instead of the plain drop-on-failure below) is step 6.
+result, reports terminal state, and retries or dead-letters on failure
+(REQUIREMENTS.md steps 4-6).
 """
 
 from __future__ import annotations
@@ -19,8 +18,9 @@ import httpx
 from src.modules.audio.callback_urls import CallbackUrlNotAllowedError, validate_callback_url
 from src.modules.audio.provider import build_provider
 from src.modules.audio.rabbitmq import QUEUE_ARGUMENTS
+from src.modules.audio.retry import decide_retry
 from src.modules.audio.types import GenerateAudioJob, SynthesizedAudio, SynthesizeErrorCode
-from src.utils import Settings, get_settings
+from src.utils import RabbitMq, Settings, get_settings
 
 
 _logger = logging.getLogger(__name__)
@@ -219,52 +219,60 @@ async def upload_job(
     return len(audio_bytes)
 
 
-async def handle_message(message: aio_pika.abc.AbstractIncomingMessage) -> None:
-    """Parse one delivery, run the full pipeline, and ack/nack it. See module docstring."""
+def _attempt_of(message: aio_pika.abc.AbstractIncomingMessage) -> int:
+    """The delivery this is, per our own `x-attempt` header — 1 if absent (first delivery)."""
 
-    async with message.process(ignore_processed=True):
-        body: dict[str, Any] = json.loads(message.body)
-        job = GenerateAudioJob.model_validate(body)
-        raw_authorization = message.headers.get("authorization") if message.headers else None
-        authorization = str(raw_authorization) if raw_authorization is not None else None
+    if not message.headers:
+        return 1
 
-        try:
-            audio = await synthesize_job(job, authorization=authorization)
-        except Exception as exc:
-            await _fail_job(
-                job,
-                code=SynthesizeErrorCode.TTS_PROVIDER_ERROR,
-                exc=exc,
-                authorization=authorization,
-            )
-            raise
-
-        try:
-            file_size_bytes = await upload_job(job, audio, authorization=authorization)
-        except Exception as exc:
-            await _fail_job(
-                job, code=SynthesizeErrorCode.UPLOAD_ERROR, exc=exc, authorization=authorization
-            )
-            raise
-
-        await report_completed(
-            job.status_callback_url,
-            file_size_bytes=file_size_bytes,
-            authorization=authorization,
-            job_id=job.job_id,
-        )
-        _logger.info(
-            "generateAudio job completed",
-            extra={"job_id": job.job_id, "file_size_bytes": file_size_bytes},
-        )
+    attempt = message.headers.get("x-attempt", 1)
+    return int(attempt) if isinstance(attempt, int | float | str) else 1
 
 
-async def _fail_job(
-    job: GenerateAudioJob,
+async def _requeue_for_retry(
+    message: aio_pika.abc.AbstractIncomingMessage,
+    *,
+    channel: aio_pika.abc.AbstractChannel,
+    settings: RabbitMq,
+    attempt: int,
+) -> None:
+    """Republish with `x-attempt` incremented — a fresh delivery, not the same one redelivered."""
+
+    headers = dict(message.headers or {})
+    headers["x-attempt"] = attempt + 1
+    retry_message = aio_pika.Message(
+        body=message.body,
+        headers=headers,
+        content_type=message.content_type or "application/json",
+        delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+    )
+    await channel.default_exchange.publish(retry_message, routing_key=settings.queue_name)
+
+
+async def _send_to_dlq(
+    message: aio_pika.abc.AbstractIncomingMessage,
+    *,
+    channel: aio_pika.abc.AbstractChannel,
+    settings: RabbitMq,
+) -> None:
+    dlq_message = aio_pika.Message(
+        body=message.body,
+        headers=dict(message.headers or {}),
+        content_type=message.content_type or "application/json",
+        delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
+    )
+    await channel.default_exchange.publish(dlq_message, routing_key=settings.dlq_name)
+
+
+async def _handle_job_failure(
+    message: aio_pika.abc.AbstractIncomingMessage,
+    exc: Exception,
     *,
     code: SynthesizeErrorCode,
-    exc: Exception,
+    job: GenerateAudioJob,
     authorization: str | None,
+    channel: aio_pika.abc.AbstractChannel,
+    settings: RabbitMq,
 ) -> None:
     _logger.warning(
         "generateAudio job failed",
@@ -284,6 +292,93 @@ async def _fail_job(
         job_id=job.job_id,
     )
 
+    decision = decide_retry(exc, default_delay_seconds=settings.retry_delay_seconds)
+    attempt = _attempt_of(message)
+
+    if decision.should_retry and attempt < settings.delivery_limit:
+        _logger.info(
+            "Retrying generateAudio job",
+            extra={
+                "job_id": job.job_id,
+                "attempt": attempt,
+                "next_attempt": attempt + 1,
+                "delivery_limit": settings.delivery_limit,
+                "delay_seconds": decision.delay_seconds,
+            },
+        )
+        await asyncio.sleep(decision.delay_seconds)
+        await _requeue_for_retry(message, channel=channel, settings=settings, attempt=attempt)
+        return
+
+    _logger.warning(
+        "generateAudio job exhausted retries or hit a non-retryable error — sending to DLQ",
+        extra={
+            "job_id": job.job_id,
+            "attempt": attempt,
+            "delivery_limit": settings.delivery_limit,
+            "was_retryable": decision.should_retry,
+        },
+    )
+    await _send_to_dlq(message, channel=channel, settings=settings)
+
+
+async def handle_message(
+    message: aio_pika.abc.AbstractIncomingMessage,
+    *,
+    channel: aio_pika.abc.AbstractChannel,
+    settings: Settings,
+) -> None:
+    """
+    Parse one delivery and run the full pipeline. Always acks the original delivery —
+    a retry or a DLQ entry is a distinct republish, not a redelivery of this one, so
+    there's nothing left for RabbitMQ to redeliver here either way.
+    """
+
+    async with message.process(ignore_processed=True):
+        body: dict[str, Any] = json.loads(message.body)
+        job = GenerateAudioJob.model_validate(body)
+        raw_authorization = message.headers.get("authorization") if message.headers else None
+        authorization = str(raw_authorization) if raw_authorization is not None else None
+
+        try:
+            audio = await synthesize_job(job, authorization=authorization)
+        except Exception as exc:
+            await _handle_job_failure(
+                message,
+                exc,
+                code=SynthesizeErrorCode.TTS_PROVIDER_ERROR,
+                job=job,
+                authorization=authorization,
+                channel=channel,
+                settings=settings.rabbitmq,
+            )
+            return
+
+        try:
+            file_size_bytes = await upload_job(job, audio, authorization=authorization)
+        except Exception as exc:
+            await _handle_job_failure(
+                message,
+                exc,
+                code=SynthesizeErrorCode.UPLOAD_ERROR,
+                job=job,
+                authorization=authorization,
+                channel=channel,
+                settings=settings.rabbitmq,
+            )
+            return
+
+        await report_completed(
+            job.status_callback_url,
+            file_size_bytes=file_size_bytes,
+            authorization=authorization,
+            job_id=job.job_id,
+        )
+        _logger.info(
+            "generateAudio job completed",
+            extra={"job_id": job.job_id, "file_size_bytes": file_size_bytes},
+        )
+
 
 async def run_worker(settings: Settings | None = None) -> None:
     """Connect to RabbitMQ and consume `generateAudio` jobs until cancelled."""
@@ -299,6 +394,15 @@ async def run_worker(settings: Settings | None = None) -> None:
             durable=True,
             arguments=QUEUE_ARGUMENTS,
         )
-        await queue.consume(handle_message)
+        await channel.declare_queue(
+            settings.rabbitmq.dlq_name,
+            durable=True,
+            arguments=QUEUE_ARGUMENTS,
+        )
+
+        async def _on_message(message: aio_pika.abc.AbstractIncomingMessage) -> None:
+            await handle_message(message, channel=channel, settings=settings)
+
+        await queue.consume(_on_message)
 
         await asyncio.Future()  # run until the task is cancelled

@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+import aio_pika
 import httpx
 import pytest
 
@@ -20,7 +21,7 @@ from src.modules.audio.worker import (
     synthesize_job,
     upload_job,
 )
-from src.utils import get_settings
+from src.utils import RabbitMq, Settings, get_settings
 
 
 @pytest.fixture(autouse=True)
@@ -319,9 +320,15 @@ class _FakeProcessContext:
 
 
 class _FakeMessage:
-    def __init__(self, body: dict[str, Any], headers: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        body: dict[str, Any],
+        headers: dict[str, Any] | None = None,
+        content_type: str | None = "application/json",
+    ) -> None:
         self.body = json.dumps(body).encode("utf-8")
         self.headers = headers
+        self.content_type = content_type
         self.acked = False
         self.rejected = False
 
@@ -329,7 +336,7 @@ class _FakeMessage:
         return _FakeProcessContext(self)
 
 
-def _message() -> _FakeMessage:
+def _message(headers: dict[str, Any] | None = None) -> _FakeMessage:
     return _FakeMessage(
         {
             "jobId": "job-1",
@@ -337,7 +344,52 @@ def _message() -> _FakeMessage:
             "voice": "qwen-voice-a",
             "genUploadUrl": "https://client.example.com/upload",
             "statusCallbackUrl": "https://client.example.com/status",
-        }
+        },
+        headers=headers,
+    )
+
+
+class _FakePublished:
+    def __init__(self, message: aio_pika.Message, routing_key: str) -> None:
+        self.message = message
+        self.routing_key = routing_key
+
+
+class _FakeExchange:
+    def __init__(self, published: list[_FakePublished]) -> None:
+        self._published = published
+
+    async def publish(self, message: aio_pika.Message, *, routing_key: str) -> None:
+        self._published.append(_FakePublished(message, routing_key))
+
+
+class _FakeChannel:
+    def __init__(self) -> None:
+        self.published: list[_FakePublished] = []
+        self.default_exchange = _FakeExchange(self.published)
+
+
+async def _handle_message(
+    message: _FakeMessage, *, channel: _FakeChannel, settings: Settings
+) -> None:
+    """`handle_message` only touches `.body`/`.headers`/`.content_type`/`.process()` on the
+    message and `.default_exchange.publish()` on the channel — these fakes duck-type both."""
+
+    await handle_message(
+        cast(aio_pika.abc.AbstractIncomingMessage, message),
+        channel=cast(aio_pika.abc.AbstractChannel, channel),
+        settings=settings,
+    )
+
+
+def _settings(*, delivery_limit: int = 3, retry_delay_seconds: float = 0.0) -> Settings:
+    return Settings(
+        rabbitmq=RabbitMq(
+            queue_name="beatrice.generate_audio",
+            dlq_name="beatrice.generate_audio.dlq",
+            delivery_limit=delivery_limit,
+            retry_delay_seconds=retry_delay_seconds,
+        )
     )
 
 
@@ -354,65 +406,102 @@ async def test_handle_message_acks_and_reports_completed_on_full_success(
 
     monkeypatch.setattr(worker_module, "report_completed", _fake_report_completed)
     message = _message()
+    channel = _FakeChannel()
 
-    await handle_message(message)  # type: ignore[arg-type]
+    await _handle_message(message, channel=channel, settings=_settings())
 
     assert message.acked is True
     assert message.rejected is False
+    assert channel.published == []
     assert completed_calls == [
         {"url": "https://client.example.com/status", "file_size_bytes": 1234}
     ]
 
 
-async def test_handle_message_reports_failed_with_provider_code_on_synthesis_failure(
+async def test_handle_message_retries_a_retryable_synthesis_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def _fail(*args: Any, **kwargs: Any) -> SynthesizedAudio:
-        raise RuntimeError("upstream boom")
+        raise httpx.ConnectError("connection refused")  # no status code -> always retryable
 
     monkeypatch.setattr(worker_module, "synthesize_job", _fail)
-    failed_calls: list[dict[str, Any]] = []
-
-    async def _fake_report_failed(url: str, *, code, message, **kwargs: Any) -> None:
-        failed_calls.append({"code": code, "message": message})
-
-    monkeypatch.setattr(worker_module, "report_failed", _fake_report_failed)
+    monkeypatch.setattr(worker_module, "report_failed", _async_noop)
     message = _message()
+    channel = _FakeChannel()
 
-    with pytest.raises(RuntimeError, match="upstream boom"):
-        await handle_message(message)  # type: ignore[arg-type]
+    await _handle_message(
+        message,
+        channel=channel,
+        settings=_settings(delivery_limit=3),
+    )
 
-    assert message.rejected is True
-    assert message.acked is False
-    assert failed_calls == [
-        {"code": SynthesizeErrorCode.TTS_PROVIDER_ERROR, "message": "upstream boom"}
-    ]
+    assert message.acked is True
+    assert message.rejected is False
+    assert len(channel.published) == 1
+    published = channel.published[0]
+    assert published.routing_key == "beatrice.generate_audio"
+    assert published.message.headers["x-attempt"] == 2
 
 
-async def test_handle_message_reports_failed_with_upload_code_on_upload_failure(
+async def test_handle_message_sends_a_non_retryable_upload_failure_straight_to_the_dlq(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     audio = SynthesizedAudio(file_path=tmp_path / "out.mp3")
     monkeypatch.setattr(worker_module, "synthesize_job", _async_return(audio))
 
     async def _fail(*args: Any, **kwargs: Any) -> int:
-        raise RuntimeError("storage boom")
+        raise _http_status_error(400)
 
     monkeypatch.setattr(worker_module, "upload_job", _fail)
     failed_calls: list[dict[str, Any]] = []
 
-    async def _fake_report_failed(url: str, *, code, message, **kwargs: Any) -> None:
+    async def _fake_report_failed(url: str, *, code: Any, message: str, **kwargs: Any) -> None:
         failed_calls.append({"code": code, "message": message})
 
     monkeypatch.setattr(worker_module, "report_failed", _fake_report_failed)
     message = _message()
+    channel = _FakeChannel()
 
-    with pytest.raises(RuntimeError, match="storage boom"):
-        await handle_message(message)  # type: ignore[arg-type]
+    await _handle_message(
+        message,
+        channel=channel,
+        settings=_settings(delivery_limit=3),
+    )
 
-    assert message.rejected is True
-    assert message.acked is False
-    assert failed_calls == [{"code": SynthesizeErrorCode.UPLOAD_ERROR, "message": "storage boom"}]
+    assert message.acked is True
+    assert failed_calls == [
+        {"code": SynthesizeErrorCode.UPLOAD_ERROR, "message": str(_http_status_error(400))}
+    ]
+    assert len(channel.published) == 1
+    assert channel.published[0].routing_key == "beatrice.generate_audio.dlq"
+
+
+async def test_handle_message_sends_to_dlq_once_the_delivery_limit_is_exhausted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fail(*args: Any, **kwargs: Any) -> SynthesizedAudio:
+        raise httpx.ConnectError("connection refused")  # retryable, but out of attempts
+
+    monkeypatch.setattr(worker_module, "synthesize_job", _fail)
+    monkeypatch.setattr(worker_module, "report_failed", _async_noop)
+    message = _message(headers={"x-attempt": 2})
+    channel = _FakeChannel()
+
+    await _handle_message(
+        message,
+        channel=channel,
+        settings=_settings(delivery_limit=2),
+    )
+
+    assert message.acked is True
+    assert len(channel.published) == 1
+    assert channel.published[0].routing_key == "beatrice.generate_audio.dlq"
+
+
+def _http_status_error(status_code: int) -> httpx.HTTPStatusError:
+    request = httpx.Request("POST", "https://example.com/")
+    response = httpx.Response(status_code, request=request)
+    return httpx.HTTPStatusError("boom", request=request, response=response)
 
 
 def _async_return(value: Any):
