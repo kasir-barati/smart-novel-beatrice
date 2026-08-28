@@ -156,6 +156,10 @@ def app_container(
     stub its response there instead of hitting a live third-party endpoint.
     ``GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS`` allow-lists the WireMock alias so
     `generateAudio`'s genUploadUrl/statusCallbackUrl can point at it in tests.
+    ``RABBITMQ__WORKER_ENABLED=false`` because this container is session-scoped and
+    shared by step-3-style tests that publish a job and then inspect it directly off
+    the queue via `queue.get()` — an in-process consumer here would race those tests
+    for the message. Tests that need the job actually processed use `worker_container`.
     """
 
     container = (
@@ -168,6 +172,7 @@ def app_container(
         .with_env("TTS__QWEN__BASE_URL", f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}")
         .with_env("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", WIREMOCK_NETWORK_ALIAS)
         .with_env("RABBITMQ__CONNECTION_STRING", rabbitmq_internal_url)
+        .with_env("RABBITMQ__WORKER_ENABLED", "false")
         .with_env("OTEL__ENABLED", "true")
         .with_env("OTEL__EXPORTER_OTLP_ENDPOINT", f"http://{OTEL_COLLECTOR_ALIAS}:4318")
         .with_env("OTEL__TRACES_SAMPLER", "parentbased_always_on")

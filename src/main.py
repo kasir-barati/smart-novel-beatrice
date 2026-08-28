@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
+from collections.abc import AsyncIterator
 from importlib.metadata import version
 
 import uvicorn
 from fastapi import FastAPI
 from strawberry.fastapi import GraphQLRouter
 
+from src.modules.audio import run_worker
 from src.schema import schema
 from src.utils import Settings, get_settings, instrument_fastapi, setup_observability
 
@@ -24,10 +28,32 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     setup_observability(settings, version=service_version)
 
+    @contextlib.asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        worker_task: asyncio.Task[None] | None = None
+        if settings.rabbitmq.worker_enabled:
+            worker_task = asyncio.create_task(run_worker(settings))
+            _logger.info(
+                "worker ready",
+                extra={
+                    "service_name": settings.service_name,
+                    "queue_name": settings.rabbitmq.queue_name,
+                },
+            )
+
+        try:
+            yield
+        finally:
+            if worker_task is not None:
+                worker_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await worker_task
+
     app = FastAPI(
         title=settings.service_name,
         version=service_version,
         description="LLM-powered assistant used in smart-novel",
+        lifespan=lifespan,
     )
     graphql_router: GraphQLRouter[None, None] = GraphQLRouter(schema)
 

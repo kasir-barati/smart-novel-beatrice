@@ -172,6 +172,14 @@ class RabbitMq(BaseSettings):
         ge=0,
         description="Backoff before retrying a failed job, unless a Retry-After response header says otherwise.",
     )
+    worker_enabled: bool = Field(
+        default=True,
+        description=(
+            "Whether this process also consumes `generateAudio` jobs, alongside serving "
+            "the GraphQL API, via a background task started in the FastAPI lifespan. "
+            "Disabled in tests that need to publish a job and inspect the queue directly."
+        ),
+    )
 
 
 class Otel(BaseSettings):
