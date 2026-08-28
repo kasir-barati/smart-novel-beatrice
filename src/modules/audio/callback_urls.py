@@ -19,11 +19,6 @@ from src.utils import get_settings
 class CallbackUrlNotAllowedError(ValueError):
     """
     Raised when a callback URL fails the scheme/host allow-list check.
-
-    Not an HTTP error, so it carries no `status_code` — `src.modules.audio.worker`
-    handles it explicitly, ahead of `src.modules.audio.retry.decide_retry`, and treats
-    it as non-retryable: a URL that fails allow-list validation fails identically on
-    every retry, so it goes straight to the DLQ.
     """
 
 

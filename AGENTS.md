@@ -6,7 +6,7 @@ An LLM-powered Python service exposing a **GraphQL API** enabling us to explain 
 
 @.github/CONTRIBUTING.md
 
-- Comments only when necessary.
+- Comments only when necessary — this includes docstrings; don't add one just to restate what the name/code already say.
 - Be concise, short README, no emojis.
 - No extra feature, focus on what has been asked.
 
