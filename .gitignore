@@ -61,6 +61,9 @@ src/modules/*/evals/report.json
 tmp/
 scratch/
 
+# Generated code reviews (local-setup/code-reviews/ skill output)
+local-setup/code-reviews/
+
 # Release tooling only
 node_modules/
 .spectaql-deps/
