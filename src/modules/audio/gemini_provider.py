@@ -56,30 +56,27 @@ class GeminiTtsProvider:
         Unlike Qwen3-TTS, Cloud TTS's REST endpoint wraps the audio as a base64 string
         inside a single JSON object rather than returning raw audio bytes — there is no
         byte stream to write incrementally, since the whole JSON body must be received
-        and parsed before `audioContent` can be decoded at all. `client.stream` is still
-        used so the connection isn't held open any longer than necessary, but the body
-        is unavoidably buffered here rather than streamed straight to disk.
+        and parsed before `audioContent` can be decoded at all. The body is unavoidably
+        buffered here rather than streamed straight to disk.
         """
 
         self._output_dir.mkdir(parents=True, exist_ok=True)
         file_path = self._output_dir / f"{uuid.uuid4()}.mp3"
 
-        async with self._client.stream(
-            "POST",
+        response = await self._client.post(
             "/v1/text:synthesize",
             json={
                 "input": {"text": text},
                 "voice": {"languageCode": _DEFAULT_LANGUAGE_CODE, "name": voice},
                 "audioConfig": {"audioEncoding": _AUDIO_ENCODING},
             },
-        ) as response:
-            await response.aread()
-            if response.is_error:
-                raise TtsProviderError(
-                    provider=PROVIDER_NAME,
-                    message=f"POST /v1/text:synthesize -> {response.status_code}",
-                    status_code=response.status_code,
-                )
+        )
+        if response.is_error:
+            raise TtsProviderError(
+                provider=PROVIDER_NAME,
+                message=f"POST /v1/text:synthesize -> {response.status_code}",
+                status_code=response.status_code,
+            )
 
         audio_bytes = base64.b64decode(response.json()["audioContent"])
         file_path.write_bytes(audio_bytes)
