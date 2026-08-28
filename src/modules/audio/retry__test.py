@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
+from src.modules.audio.callback_urls import CallbackUrlNotAllowedError
 from src.modules.audio.exceptions import TtsProviderError
 from src.modules.audio.retry import decide_retry
 
@@ -94,3 +95,18 @@ def test_decide_retry_treats_tts_provider_error_without_status_code_as_retryable
 
     assert result.should_retry is True
     assert result.delay_seconds == 30.0
+
+
+def test_decide_retry_does_not_retry_a_callback_url_not_allowed_error() -> None:
+    """
+    A callback URL that fails allow-list validation will fail identically on every
+    retry, so this must be classified like a non-retryable 4xx, not fall into the
+    "no status code -> always retryable" branch reserved for network errors.
+    """
+
+    exc = CallbackUrlNotAllowedError("host 'evil.example.com' is not in the allow-list.")
+
+    result = decide_retry(exc, default_delay_seconds=30.0)
+
+    assert result.should_retry is False
+    assert result.delay_seconds == 0.0

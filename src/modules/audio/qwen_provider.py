@@ -50,20 +50,25 @@ class Qwen3TtsProvider:
         return [Voice(name=entry["name"]) for entry in payload.get("voices", [])]
 
     async def synthesize(self, *, text: str, voice: str) -> SynthesizedAudio:
-        response = await self._client.post(
-            self._settings.synthesize_path,
-            json={"model": self._settings.model, "input": text, "voice": voice},
-        )
-        if response.is_error:
-            raise TtsProviderError(
-                provider=PROVIDER_NAME,
-                message=f"POST {self._settings.synthesize_path} -> {response.status_code}",
-                status_code=response.status_code,
-            )
-
         self._output_dir.mkdir(parents=True, exist_ok=True)
         file_path = self._output_dir / f"{uuid.uuid4()}.mp3"
-        file_path.write_bytes(response.content)
+
+        async with self._client.stream(
+            "POST",
+            self._settings.synthesize_path,
+            json={"model": self._settings.model, "input": text, "voice": voice},
+        ) as response:
+            if response.is_error:
+                await response.aread()
+                raise TtsProviderError(
+                    provider=PROVIDER_NAME,
+                    message=f"POST {self._settings.synthesize_path} -> {response.status_code}",
+                    status_code=response.status_code,
+                )
+
+            with file_path.open("wb") as fh:
+                async for chunk in response.aiter_bytes():
+                    fh.write(chunk)
 
         return SynthesizedAudio(file_path=file_path)
 

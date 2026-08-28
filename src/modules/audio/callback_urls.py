@@ -17,7 +17,17 @@ from src.utils import get_settings
 
 
 class CallbackUrlNotAllowedError(ValueError):
-    """Raised when a callback URL fails the scheme/host allow-list check."""
+    """
+    Raised when a callback URL fails the scheme/host allow-list check.
+
+    Carries a `status_code` of 400 (duck-typed, like `TtsProviderError`) so
+    `src.modules.audio.retry.decide_retry` classifies it as a non-retryable client
+    error rather than falling into the "no status code" branch reserved for genuine
+    network failures — a URL that fails allow-list validation fails identically on
+    every retry, so it should go straight to the DLQ.
+    """
+
+    status_code = 400
 
 
 def validate_callback_url(value: str) -> str:

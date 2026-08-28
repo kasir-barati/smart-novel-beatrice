@@ -411,8 +411,26 @@ async def handle_message(
     """
 
     async with message.process(ignore_processed=True):
-        body: dict[str, Any] = json.loads(message.body)
-        job = GenerateAudioJob.model_validate(body)
+        try:
+            body: dict[str, Any] = json.loads(message.body)
+            job = GenerateAudioJob.model_validate(body)
+        except Exception as exc:
+            # No `job` to report failure through (no `statusCallbackUrl` to call), and a
+            # malformed body will fail identically on every redelivery — straight to the
+            # DLQ rather than through the retry path `_handle_job_failure` drives.
+            _logger.warning(
+                "generateAudio message could not be parsed — sending to DLQ",
+                extra={
+                    "instance_id": settings.instance_id,
+                    "attempt": _attempt_of(message),
+                    "error_code": "MALFORMED_MESSAGE",
+                    "error_message": str(exc),
+                },
+                exc_info=exc,
+            )
+            await _send_to_dlq(message, channel=channel, settings=settings.rabbitmq)
+            return
+
         raw_authorization = message.headers.get("authorization") if message.headers else None
         authorization = str(raw_authorization) if raw_authorization is not None else None
         attempt = _attempt_of(message)

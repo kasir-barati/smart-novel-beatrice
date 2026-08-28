@@ -20,6 +20,26 @@ services:
       rabbitmq:
         condition: service_healthy
 
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "src.worker"]
+    env_file:
+      - .env
+    environment:
+      OTEL__EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      RABBITMQ__CONNECTION_STRING: amqp://guest:guest@rabbitmq:5672/
+    # The image's HEALTHCHECK curls the GraphQL server on :3000, which this service
+    # never runs — the worker has no HTTP surface, so that check is meaningless here.
+    healthcheck:
+      disable: true
+    depends_on:
+      otel-healthcheck:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+
   ollama:
     build:
       context: local-setup/ollama

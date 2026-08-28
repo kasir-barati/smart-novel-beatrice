@@ -477,6 +477,70 @@ async def test_handle_message_sends_a_non_retryable_upload_failure_straight_to_t
     assert channel.published[0].routing_key == "beatrice.generate_audio.dlq"
 
 
+async def test_handle_message_sends_an_upload_allow_list_failure_straight_to_the_dlq(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """
+    `upload_job` re-validates `genUploadUrl` against the allow-list before calling out.
+    A URL that fails this check will fail identically on every retry, so — like any
+    other non-retryable failure — it must go straight to the DLQ on the first attempt,
+    not consume the retry budget the way an unclassified error would.
+    """
+
+    audio = SynthesizedAudio(file_path=tmp_path / "out.mp3")
+    monkeypatch.setattr(worker_module, "synthesize_job", _async_return(audio))
+    monkeypatch.setattr(worker_module, "report_failed", _async_noop)
+    message = _message()
+    message.body = json.dumps(
+        {
+            "jobId": "job-1",
+            "text": "hello",
+            "voice": "qwen-voice-a",
+            "genUploadUrl": "https://evil.example.com/upload",
+            "statusCallbackUrl": "https://client.example.com/status",
+        }
+    ).encode("utf-8")
+    channel = _FakeChannel()
+
+    await _handle_message(
+        message,
+        channel=channel,
+        settings=_settings(delivery_limit=3),
+    )
+
+    assert message.acked is True
+    assert len(channel.published) == 1
+    assert channel.published[0].routing_key == "beatrice.generate_audio.dlq"
+
+
+async def test_handle_message_sends_a_malformed_message_straight_to_the_dlq(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """
+    A body that doesn't parse as JSON or validate as `GenerateAudioJob` has no `job` to
+    report failure through (no `statusCallbackUrl` to call) and will fail identically on
+    every redelivery, so it must be acked and dead-lettered directly, with a structured
+    log line, rather than propagating out of `message.process()` untraced.
+    """
+
+    message = _FakeMessage({"jobId": "job-1"})  # missing required fields
+    channel = _FakeChannel()
+
+    with caplog.at_level("WARNING"):
+        await _handle_message(message, channel=channel, settings=_settings(delivery_limit=3))
+
+    assert message.acked is True
+    assert message.rejected is False
+    assert len(channel.published) == 1
+    assert channel.published[0].routing_key == "beatrice.generate_audio.dlq"
+    record: Any = next(
+        r
+        for r in caplog.records
+        if r.message == "generateAudio message could not be parsed — sending to DLQ"
+    )
+    assert record.error_code == "MALFORMED_MESSAGE"
+
+
 async def test_handle_message_sends_to_dlq_once_the_delivery_limit_is_exhausted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
