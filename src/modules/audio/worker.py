@@ -20,7 +20,7 @@ from src.modules.audio.callback_urls import CallbackUrlNotAllowedError, validate
 from src.modules.audio.provider import build_provider
 from src.modules.audio.rabbitmq import QUEUE_ARGUMENTS
 from src.modules.audio.redact import redact_presigned_url
-from src.modules.audio.retry import decide_retry
+from src.modules.audio.retry import RetryDecision, decide_retry
 from src.modules.audio.types import GenerateAudioJob, SynthesizedAudio, SynthesizeErrorCode
 from src.utils import RabbitMq, Settings, get_settings
 
@@ -367,7 +367,13 @@ async def _handle_job_failure(
     )
 
     rabbitmq_settings = settings.rabbitmq
-    decision = decide_retry(exc, default_delay_seconds=rabbitmq_settings.retry_delay_seconds)
+    # Not an HTTP error, so it can't be classified via status_code like decide_retry's
+    # other cases — a callback URL that fails allow-list validation fails identically
+    # on every retry, so it's handled explicitly here instead as always non-retryable.
+    if isinstance(exc, CallbackUrlNotAllowedError):
+        decision = RetryDecision(should_retry=False, delay_seconds=0.0)
+    else:
+        decision = decide_retry(exc, default_delay_seconds=rabbitmq_settings.retry_delay_seconds)
 
     if decision.should_retry and attempt < rabbitmq_settings.delivery_limit:
         _logger.info(
