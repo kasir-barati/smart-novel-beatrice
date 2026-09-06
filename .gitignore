@@ -67,3 +67,4 @@ local-setup/code-reviews/
 # Release tooling only
 node_modules/
 .spectaql-deps/
+.claude/worktrees
