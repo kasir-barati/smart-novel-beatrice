@@ -49,14 +49,20 @@ class Qwen3TtsProvider:
         payload = response.json()
         return [Voice(name=entry["name"]) for entry in payload.get("voices", [])]
 
-    async def synthesize(self, *, text: str, voice: str) -> SynthesizedAudio:
+    async def synthesize(
+        self, *, text: str, voice: str, instruct: str | None = None
+    ) -> SynthesizedAudio:
         self._output_dir.mkdir(parents=True, exist_ok=True)
         file_path = self._output_dir / f"{uuid.uuid4()}.mp3"
+
+        body: dict[str, str] = {"model": self._settings.model, "input": text, "voice": voice}
+        if instruct is not None:
+            body["instruct"] = instruct
 
         async with self._client.stream(
             "POST",
             self._settings.synthesize_path,
-            json={"model": self._settings.model, "input": text, "voice": voice},
+            json=body,
         ) as response:
             if response.is_error:
                 await response.aread()

@@ -42,3 +42,20 @@ class InvalidVoiceError(AppError):
             message=f"'{voice}' is not a voice the configured provider accepts.",
             extensions={"voice": voice},
         )
+
+
+INSTRUCT_NOT_SUPPORTED_ERROR_CODE = "INSTRUCT_NOT_SUPPORTED"
+
+
+class InstructNotSupportedError(AppError):
+    """
+    Raised when `generateAudio` is called with `instruct` set but the configured
+    provider has no style/tone control (only Qwen3-TTS supports `instruct` today).
+    """
+
+    def __init__(self, *, provider: str) -> None:
+        super().__init__(
+            code=INSTRUCT_NOT_SUPPORTED_ERROR_CODE,
+            message=f"'{provider}' does not support the 'instruct' argument.",
+            extensions={"provider": provider},
+        )

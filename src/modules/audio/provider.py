@@ -27,8 +27,16 @@ class TtsProvider(Protocol):
         """
         ...
 
-    async def synthesize(self, *, text: str, voice: str) -> SynthesizedAudio:
-        """Generate speech audio for `text` using `voice`, and store it to disk."""
+    async def synthesize(
+        self, *, text: str, voice: str, instruct: str | None = None
+    ) -> SynthesizedAudio:
+        """
+        Generate speech audio for `text` using `voice`, and store it to disk.
+
+        :param instruct: Natural-language style/tone/emotion guidance. Only Qwen3-TTS
+            supports this; passing it to a provider that doesn't raises
+            `InstructNotSupportedError`.
+        """
         ...
 
     async def aclose(self) -> None:

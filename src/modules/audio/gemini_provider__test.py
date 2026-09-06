@@ -7,7 +7,7 @@ from pathlib import Path
 import httpx
 import pytest
 
-from src.modules.audio.exceptions import TtsProviderError
+from src.modules.audio.exceptions import InstructNotSupportedError, TtsProviderError
 from src.modules.audio.gemini_provider import GeminiTtsProvider
 from src.utils import GeminiTtsSettings
 
@@ -90,3 +90,10 @@ async def test_synthesize_raises_on_error_response(tmp_path: Path) -> None:
 
     with pytest.raises(TtsProviderError):
         await provider.synthesize(text="hi", voice="nonexistent")
+
+
+async def test_synthesize_rejects_instruct(tmp_path: Path) -> None:
+    provider = GeminiTtsProvider(_settings(), tmp_path)
+
+    with pytest.raises(InstructNotSupportedError):
+        await provider.synthesize(text="hi", voice="en-US-Standard-A", instruct="whisper")

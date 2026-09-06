@@ -74,3 +74,30 @@ async def test_synthesize_raises_on_error_response(tmp_path: Path) -> None:
 
     with pytest.raises(TtsProviderError):
         await provider.synthesize(text="hi", voice="nonexistent")
+
+
+async def test_synthesize_forwards_instruct_when_given(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body == {
+            "model": "Qwen/Qwen3-TTS",
+            "input": "hello",
+            "voice": "qwen-female-1",
+            "instruct": "speak in a whisper",
+        }
+        return httpx.Response(200, content=b"raw-audio-bytes")
+
+    provider = _provider(tmp_path, handler)
+
+    await provider.synthesize(text="hello", voice="qwen-female-1", instruct="speak in a whisper")
+
+
+async def test_synthesize_omits_instruct_when_not_given(tmp_path: Path) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert "instruct" not in body
+        return httpx.Response(200, content=b"raw-audio-bytes")
+
+    provider = _provider(tmp_path, handler)
+
+    await provider.synthesize(text="hello", voice="qwen-female-1")

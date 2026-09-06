@@ -10,7 +10,7 @@ from pathlib import Path
 
 import httpx
 
-from src.modules.audio.exceptions import TtsProviderError
+from src.modules.audio.exceptions import InstructNotSupportedError, TtsProviderError
 from src.modules.audio.types import SynthesizedAudio, Voice
 from src.utils import GeminiTtsSettings
 
@@ -51,7 +51,9 @@ class GeminiTtsProvider:
             for entry in payload.get("voices", [])
         ]
 
-    async def synthesize(self, *, text: str, voice: str) -> SynthesizedAudio:
+    async def synthesize(
+        self, *, text: str, voice: str, instruct: str | None = None
+    ) -> SynthesizedAudio:
         """
         Unlike Qwen3-TTS, Cloud TTS's REST endpoint wraps the audio as a base64 string
         inside a single JSON object rather than returning raw audio bytes — there is no
@@ -59,6 +61,9 @@ class GeminiTtsProvider:
         and parsed before `audioContent` can be decoded at all. The body is unavoidably
         buffered here rather than streamed straight to disk.
         """
+
+        if instruct is not None:
+            raise InstructNotSupportedError(provider=PROVIDER_NAME)
 
         self._output_dir.mkdir(parents=True, exist_ok=True)
         file_path = self._output_dir / f"{uuid.uuid4()}.mp3"
