@@ -63,16 +63,21 @@ docker compose up --build -d
 
 All configuration is via environment variables (see [`.env.example`](../.env.example)). Notable ones:
 
-| Var                 | Purpose                                                                       |
-| ------------------- | ----------------------------------------------------------------------------- |
-| `LLM__BASE_URL`     | OpenAI-compatible endpoint (e.g. `https://api.openai.com/v1`, `http://ollama:11434/v1`) |
-| `LLM__MODEL`        | Model name to request                                                         |
-| `LLM__API_KEY`      | API key — any non-empty string for Ollama; real key for OpenAI/Together/etc.  |
-| `LLM__TIMEOUT_MS`   | HTTP timeout for LLM calls (default `180000`)                                 |
-| `PORT`              | HTTP port (default `3000`)                                                    |
-| `LOGGING__MODE`     | `JSON` or `PLAIN_TEXT`                                                        |
-| `OTEL__ENABLED`     | Set to `false` to disable OpenTelemetry export                                |
-| `OTEL__EXPORTER_OTLP_ENDPOINT` | OTLP HTTP endpoint (e.g. `http://otel-collector:4318`)             |
+| Var                                       | Purpose                                                                                  |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `LLM__BASE_URL`                           | OpenAI-compatible endpoint (e.g. `https://api.openai.com/v1`, `http://ollama:11434/v1`)  |
+| `LLM__MODEL`                              | Model name to request                                                                    |
+| `LLM__API_KEY`                            | API key — any non-empty string for Ollama; real key for OpenAI/Together/etc.             |
+| `LLM__TIMEOUT_MS`                         | HTTP timeout for LLM calls (default `180000`)                                            |
+| `PORT`                                    | HTTP port (default `3000`)                                                               |
+| `LOGGING__MODE`                           | `JSON` or `PLAIN_TEXT`                                                                   |
+| `OTEL__ENABLED`                           | Set to `false` to disable OpenTelemetry export                                           |
+| `OTEL__EXPORTER_OTLP_ENDPOINT`            | OTLP HTTP endpoint (e.g. `http://otel-collector:4318`)                                   |
+| `TTS__DEFAULT_PROVIDER`                   | Which TTS provider backs `audioVoices`/`generateAudio` (`qwen3-tts` or `gemini-tts`)     |
+| `TTS__QWEN__API_KEY`                      | API key for the Qwen3-TTS host (DeepInfra by default)                                    |
+| `TTS__GEMINI__API_KEY`                    | API key for Google Cloud Text-to-Speech                                                  |
+| `GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS` | Comma-separated allow-listed hosts for outbound `genUploadUrl`/`statusCallbackUrl` calls |
+| `RABBITMQ__CONNECTION_STRING`             | AMQP connection string for the `generateAudio` job queue                                 |
 
 ## References
 

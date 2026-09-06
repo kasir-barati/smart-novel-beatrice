@@ -20,7 +20,7 @@ The model reads the entire prompt and computes its internal state (the KV-cache)
 
 - **Cost:** roughly `O(input_tokens)` but heavily parallelizable.
 - **Metric:** "prompt tokens/second" or "prefill throughput". On CPU for a 3B model: ~50–200 tokens/s. On a modern GPU: thousands to tens of thousands of tokens/s.
-- **Observable as:** the delay before *any* output appears.
+- **Observable as:** the delay before _any_ output appears.
 
 <details>
 <summary>💡 Tokens are the model's own subword units produced by its "tokenizer".</summary>
@@ -45,7 +45,6 @@ The model reads the entire prompt and computes its internal state (the KV-cache)
 ![Concrete example for tokenization](./tokenizaation.png)
 
 </details>
-
 
 ### 2. Decode (a.k.a. "generation" / "output tokens")
 
@@ -87,10 +86,10 @@ A typical developer laptop with DDR5 lands in the 60–90 GB/s range, so **~15�
 - The output is a JSON object roughly like:
   ```json
   {
-    "meaning": "...",               // ~40–80 tokens
+    "meaning": "...", // ~40–80 tokens
     "simplifiedExplanation": "...", // ~30–60 tokens
-    "synonyms": ["a", "b", "c"],    // ~15–40 tokens
-    "antonyms": ["x", "y", "z"]     // ~15–40 tokens
+    "synonyms": ["a", "b", "c"], // ~15–40 tokens
+    "antonyms": ["x", "y", "z"] // ~15–40 tokens
   }
   ```
 

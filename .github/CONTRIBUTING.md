@@ -55,14 +55,14 @@ smart-novel-beatrice/
 Three tiers. Each answers a different question. Put each new test in the tier that matches what you actually want to verify.
 
 1. Unit tests:
-   - **Question:** *Does this piece of Python behave correctly in isolation?*
+   - **Question:** _Does this piece of Python behave correctly in isolation?_
    - Fast, hermetic, no Docker, no network.
    - Test whatever is easy and worthwhile to unit test: pure functions, type validation, resolver logic with the agent mocked out, error mapping, prompt-template rendering, etc.
    - If a test needs Docker or a live LLM to make sense, it is **not** a unit test — move it to integration or evals.
    - Add unit tests generously. They are cheap.
    - Mock outbound calls at the tier boundary (`httpx` for provider/callback/presigned-URL HTTP, `aio-pika` for RabbitMQ) rather than spinning up real infra.
 2. Integration tests:
-   - **Question:** *Do the GraphQL mutations and queries actually work end-to-end against the running app?*
+   - **Question:** _Do the GraphQL mutations and queries actually work end-to-end against the running app?_
    - Spin up the whole stack, hit the GraphQL endpoint over HTTP, assert on the response shape.
    - Purposefully thin — one happy-path per operation, plus one scalar/validation error path where relevant.
    - Uses [Testcontainers](https://testcontainers.com/).
@@ -73,7 +73,7 @@ Three tiers. Each answers a different question. Put each new test in the tier th
      - `worker_container` (`tests/conftest.py`) runs the actual consumer (`src/worker.py`) against the same queue `app_container` publishes to. It's function-scoped, unlike `app_container` and the other infra fixtures — a session-scoped worker would race any test that inspects a message directly off the queue via `queue.get()` (like the plain publish-only `generateAudio` tests), consuming it before the test can. Only request `worker_container` in tests that actually need the worker to process the message.
      - `aio_pika.Queue.get(timeout=N)` is a single, non-blocking poll — `timeout` bounds that one RPC call, not how long to wait for a message to show up. It's fine for a message published synchronously by the test itself (already sitting in the queue by the time you call `get()`), but wrong for anything the worker publishes asynchronously after a delay (e.g. a retry) — that needs an actual poll loop (`get(fail=False)` in a `while` with `asyncio.sleep` between attempts), or it'll raise `QueueEmpty` immediately instead of waiting.
 3. Evals:
-   - **Question:** *Are the prompts producing outputs that satisfy our rules? Is the model still doing what we expect?*
+   - **Question:** _Are the prompts producing outputs that satisfy our rules? Is the model still doing what we expect?_
    - Use [`pydantic-evals`](https://ai.pydantic.dev/evals/) to run each module's dataset against the live LLM and score each row with a set of structural evaluators.
    - Catch:
      - Prompt edits that unintentionally degrade output quality.
@@ -100,6 +100,6 @@ Three tiers. Each answers a different question. Put each new test in the tier th
 5. Use `uv`; ALWAYS `uv run xxx` NEVER `python3 xxx`.
 6. Use latest version of libraries and idiomatic approaches as of today.
 7. Class owning an `httpx.AsyncClient` → see the `httpx-async-transport` skill.
-8. An enum/type that a module needs *and* that `Settings` needs to reference (e.g. to pick which of that module's implementations to use) belongs in `src/utils/config.py`, colocated with the other settings enums (`LoggingMode`, `LogLevel`, `TtsProviderName`), not in the module itself. `Settings` is imported nearly everywhere, so defining that type in the module instead creates a straight import cycle the moment `Settings` needs it too.
+8. An enum/type that a module needs _and_ that `Settings` needs to reference (e.g. to pick which of that module's implementations to use) belongs in `src/utils/config.py`, colocated with the other settings enums (`LoggingMode`, `LogLevel`, `TtsProviderName`), not in the module itself. `Settings` is imported nearly everywhere, so defining that type in the module instead creates a straight import cycle the moment `Settings` needs it too.
 9. Comma-separated / delimited env var on a `BaseSettings` field → see the `settings-list-env-field` skill.
 10. Asserting on `extra={...}` log fields via `caplog` → see the `caplog-extra-typing` skill.
