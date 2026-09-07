@@ -12,8 +12,9 @@ services:
       RABBITMQ__CONNECTION_STRING: amqp://guest:guest@rabbitmq:5672/
       GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS: presign-server,localhost
       TTS__QWEN__BASE_URL: http://qwen-tts:8001
-      # CustomVoice CPU inference is slow enough locally to exceed the 30s client default.
-      TTS__QWEN__TIMEOUT_MS: "120000"
+      # CustomVoice CPU inference is slow enough locally to exceed the 30s client default —
+      # 120s still wasn't enough for a few hundred characters of text, so this is generous.
+      TTS__QWEN__TIMEOUT_MS: "300000"
     ports:
       - "${PORT:-3000}:3000"
     depends_on:
