@@ -66,6 +66,8 @@ Update `local-setup/qwen-tts/server.py`:
 - Replace the custom `ref_audio`/`ref_text` clone in `_VOICES` with a mapping from the voice names Beatrice exposes to one of Qwen3-TTS's 9 preset speaker names (`Vivian`, `Serena`, `Uncle_Fu`, `Dylan`, `Eric`, `Ryan`, `Aiden`, `Ono_Anna`, `Sohee`). Keep `"default"` mapped to an English speaker (`Ryan`).
 - `SpeechRequest` gains `instruct: str | None = None`.
 - `synthesize` calls `model.generate_custom_voice(text=request.input, language=LANGUAGE, speaker=..., instruct=request.instruct)` instead of `generate_voice_clone`.
+- Each Qwen3-TTS checkpoint supports exactly one generation method — `generate_custom_voice` only exists on the `-CustomVoice` checkpoints, not the `-Base` clone-only checkpoint this shim previously downloaded. `QWEN_TTS_MODEL`'s default (both in `server.py` and the `QWEN_TTS_MODEL` build arg in `compose.yml`) must move to `Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice`.
+- CPU inference on the `-CustomVoice` checkpoint is measurably slower than the old `-Base` clone model was (30-60s for a short sentence, observed locally) — `TTS__QWEN__TIMEOUT_MS` in `compose.yml`'s `beatrice` service needs raising (120000 was sufficient locally) or the worker's default synthesis call times out under normal CPU load.
 
 ### AC
 
