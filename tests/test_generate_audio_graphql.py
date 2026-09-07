@@ -221,6 +221,41 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
     assert statuses_seen == ["queued", "generating", "generating", "uploading", "completed"]
 
 
+async def test_generate_audio_pipeline_forwards_instruct_to_the_provider(
+    http_client: AsyncClient,
+    wiremock: WireMockClient,
+    worker_container: DockerContainer,
+    minio_verify_client: Minio,
+    minio_bucket: str,
+    presigned_upload_url_factory: Callable[[str], str],
+) -> None:
+    """Same pipeline as above, but asserting instruct reaches the provider's request body."""
+
+    _stub_voices(wiremock)
+    audio_bytes = b"fake-audio-bytes-from-the-stubbed-provider"
+    wiremock.stub("POST", "/v1/audio/speech", status=200, body_bytes=audio_bytes)
+    object_name = "pipeline-instruct-test.mp3"
+    presigned_url = presigned_upload_url_factory(object_name)
+    wiremock.stub("POST", "/upload", status=200, json_body={"url": presigned_url})
+    wiremock.stub("POST", "/status-callback", status=200, json_body={"ok": True})
+
+    response = await http_client.post(
+        "/graphql",
+        json={
+            "query": GENERATE_AUDIO_MUTATION,
+            "variables": _variables(instruct="speak in a whisper"),
+        },
+    )
+
+    assert response.status_code == 202, response.text
+
+    await _wait_for_object(minio_verify_client, minio_bucket, object_name)
+
+    synthesize_requests = wiremock.requests_for("/v1/audio/speech")
+    assert len(synthesize_requests) == 1
+    assert json.loads(synthesize_requests[0]["body"])["instruct"] == "speak in a whisper"
+
+
 async def _wait_for_object(client: Minio, bucket: str, object_name: str, timeout: float = 20.0):
     """Poll MinIO for an object the worker uploads asynchronously, out-of-band."""
 

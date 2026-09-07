@@ -192,8 +192,10 @@ class _FakeProvider:
     async def get_voices(self, *, language: str | None = None):  # pragma: no cover - unused here
         raise NotImplementedError
 
-    async def synthesize(self, *, text: str, voice: str) -> SynthesizedAudio:
-        self.synthesize_calls.append({"text": text, "voice": voice})
+    async def synthesize(
+        self, *, text: str, voice: str, instruct: str | None = None
+    ) -> SynthesizedAudio:
+        self.synthesize_calls.append({"text": text, "voice": voice, "instruct": instruct})
         return self._result
 
     async def aclose(self) -> None:
@@ -229,7 +231,9 @@ async def test_synthesize_job_reports_progress_then_calls_the_provider(
     returned = await synthesize_job(job, authorization=None)
 
     assert returned is result
-    assert fake_provider.synthesize_calls == [{"text": "hello", "voice": "qwen-voice-a"}]
+    assert fake_provider.synthesize_calls == [
+        {"text": "hello", "voice": "qwen-voice-a", "instruct": None}
+    ]
     assert fake_provider.closed is True
     assert [c["percent"] for c in progress_calls] == [
         GENERATING_STARTED_PERCENT,
@@ -238,11 +242,29 @@ async def test_synthesize_job_reports_progress_then_calls_the_provider(
     assert all(c["status"] == "generating" for c in progress_calls)
 
 
+async def test_synthesize_job_forwards_instruct_to_the_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    result = SynthesizedAudio(file_path=tmp_path / "out.mp3")
+    fake_provider = _FakeProvider(result)
+    monkeypatch.setattr(worker_module, "build_provider", lambda name, settings: fake_provider)
+    monkeypatch.setattr(worker_module, "report_progress", _async_noop)
+
+    job = _job(instruct="speak in a whisper")
+    await synthesize_job(job, authorization=None)
+
+    assert fake_provider.synthesize_calls == [
+        {"text": "hello", "voice": "qwen-voice-a", "instruct": "speak in a whisper"}
+    ]
+
+
 async def test_synthesize_job_closes_the_provider_even_if_synthesis_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     class _FailingProvider(_FakeProvider):
-        async def synthesize(self, *, text: str, voice: str) -> SynthesizedAudio:
+        async def synthesize(
+            self, *, text: str, voice: str, instruct: str | None = None
+        ) -> SynthesizedAudio:
             raise RuntimeError("upstream boom")
 
     fake_provider = _FailingProvider(SynthesizedAudio(file_path=Path("/tmp/x")))

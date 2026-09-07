@@ -157,7 +157,7 @@ async def synthesize_job(job: GenerateAudioJob, *, authorization: str | None) ->
             authorization=authorization,
             job_id=job.job_id,
         )
-        return await provider.synthesize(text=job.text, voice=job.voice)
+        return await provider.synthesize(text=job.text, voice=job.voice, instruct=job.instruct)
     finally:
         await provider.aclose()
 

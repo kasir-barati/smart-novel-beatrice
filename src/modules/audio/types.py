@@ -48,6 +48,10 @@ class GenerateAudioJob(BaseModel):
     voice: str
     gen_upload_url: str = Field(alias="genUploadUrl")
     status_callback_url: str = Field(alias="statusCallbackUrl")
+    instruct: str | None = Field(
+        default=None,
+        description="Qwen3-TTS style guide, absent on messages published before this field existed.",
+    )
 
 
 class SynthesizeErrorCode(StrEnum):
