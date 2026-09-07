@@ -15,3 +15,10 @@ asked for both the accept-when-Qwen and reject-when-Gemini paths at the integrat
 practical, so the reject path stayed unit-only (documented in the test file). Added a note to
 `PROCESS.md` step 5 so future steps check this before assuming a config-dependent branch is
 integration-testable against the shared fixtures.
+
+## 2026-09-07 — instruct feature, step 3 (Worker — Forward instruct to the Provider)
+
+Clean pass: unit tests, the extended pipeline integration test (asserting instruct reaches
+the provider's wiremock-stubbed /v1/audio/speech request body via worker_container), ruff,
+flake8-aaa, and pyright all passed first try. No GraphQL surface changed, so
+graphql-api-tester was correctly skipped. Nothing to change in PROCESS.md or CONTRIBUTING.md.
