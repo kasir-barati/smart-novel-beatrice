@@ -2,11 +2,13 @@
 
 ## Summary
 
-Add an optional `instruct` argument to the `generateAudio` mutation, letting a caller steer tone/emotion/delivery style (e.g. "speak in a whisper", "excited tone") without embedding stage directions in `text` itself. Qwen3-TTS is the only provider that supports this today: `generate_custom_voice(text, language, speaker, instruct)` takes a fixed preset speaker plus an optional natural-language `instruct` string, preserving a consistent voice identity whether or not `instruct` is used. Gemini Cloud TTS has no equivalent — requests with `instruct` set must be rejected outright when Gemini is the configured provider, not silently ignored.
+Add an optional `instruct` argument to the `generateAudio` mutation, letting a caller supply a general style guide for how the whole call should be read — e.g. "A male narrator with a clear voice. Treat bracketed words like [dramatic] or [proud] as emotion cues, not literal text. Don't read `<`/`>` characters aloud, just pause briefly where they appear." `text` itself is passed through untouched, inline tags and all (e.g. `"The system chimed: [Berserker Core Activated]. My new skill, Soul-Shaking Roar <LEVEL 1>, ..."`) — Beatrice does not parse, strip, or segment `text` in any way. It's Qwen3-TTS's own instruction-following that interprets the tags inside `text` according to `instruct`, in a single synthesis call.
+
+Qwen3-TTS is the only provider that supports this today: `generate_custom_voice(text, language, speaker, instruct)` takes a fixed preset speaker plus an optional natural-language `instruct` string, preserving a consistent voice identity whether or not `instruct` is used. Gemini Cloud TTS has no equivalent — requests with `instruct` set must be rejected outright when Gemini is the configured provider, not silently ignored.
 
 This requires switching Qwen3-TTS voices from the current custom `ref_audio`/`ref_text` clone (`"default"`) to Qwen's fixed preset speakers (Vivian, Serena, Uncle_Fu, Dylan, Eric, Ryan, Aiden, Ono_Anna, Sohee), since `generate_custom_voice` only accepts a preset speaker name, not a cloned reference clip. This is a deliberate trade-off: we lose the specific cloned voice identity in exchange for `instruct` support with a stable voice.
 
-No batching — `instruct` is a single string applied to the whole `text` for one call, not a list of per-segment instructions.
+No batching, no segmentation — one `text` + one `instruct` maps to exactly one synthesis call, regardless of how many tags appear in `text`.
 
 ## Steps
 
@@ -39,7 +41,7 @@ Add `instruct: str | None = None` as an optional argument to `generate_audio` (`
 
 - Validation happens before publishing to RabbitMQ — an invalid `instruct`/provider combination never reaches the queue.
 - `instruct` has no length cap beyond GraphQL's own string handling — don't add one that wasn't asked for.
-- Update the GraphQL schema docs (`strawberry.argument(description=...)`) to explain `instruct` is Qwen3-TTS-only.
+- Update the GraphQL schema docs (`strawberry.argument(description=...)`) to explain `instruct` is Qwen3-TTS-only, applies to the whole call as one style guide, and that `text` is never parsed or stripped — any inline tags in `text` are passed through verbatim for the model to interpret per `instruct`.
 
 ### Test
 
