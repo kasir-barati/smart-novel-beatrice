@@ -22,3 +22,20 @@ Clean pass: unit tests, the extended pipeline integration test (asserting instru
 the provider's wiremock-stubbed /v1/audio/speech request body via worker_container), ruff,
 flake8-aaa, and pyright all passed first try. No GraphQL surface changed, so
 graphql-api-tester was correctly skipped. Nothing to change in PROCESS.md or CONTRIBUTING.md.
+
+## 2026-09-07 — instruct feature, step 4 (Local Qwen3-TTS Shim — Preset Speakers + instruct)
+
+Manual verification (this step has no pytest tier) caught two things the written step
+couldn't have anticipated: (1) Qwen3-TTS checkpoints each support exactly one generation
+method — `generate_custom_voice` doesn't exist on the `-Base` checkpoint the shim was
+already downloading, so `QWEN_TTS_MODEL`'s default had to move to the `-CustomVoice`
+checkpoint in both `server.py` and `compose.yml`'s build arg (two places, easy to miss one).
+(2) The `-CustomVoice` checkpoint's CPU inference is slow enough (30-60s for a short
+sentence, on this machine under concurrent-container load) to exceed the existing 30s
+`TTS__QWEN__TIMEOUT_MS`, so that had to be raised too. Neither was in the original AC —
+added a CONTRIBUTING.md-style note to PROCESS.md: when a step's Test subsection says
+"verify manually," budget for the possibility that manual verification surfaces
+environment/dependency facts (a library's model-checkpoint capabilities, realistic
+CPU timing) no amount of code review would have caught, and update the step's own AC
+retroactively so the requirements doc reflects what was actually true, not just what
+was planned.
