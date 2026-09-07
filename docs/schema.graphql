@@ -66,6 +66,11 @@ type Mutation {
     Callback Beatrice POSTs progress/state updates to. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list.
     """
     statusCallbackUrl: String!
+
+    """
+    Qwen3-TTS-only. A style guide applied to the whole call, e.g. 'A male narrator with a clear voice. Treat bracketed words like [dramatic] as emotion cues, not literal text.' text is never parsed or stripped by Beatrice — any inline tags in it are passed through verbatim for the model to interpret per this guide. Rejected when the configured provider isn't Qwen3-TTS.
+    """
+    instruct: String = null
   ): GenerateAudioResult!
 }
 

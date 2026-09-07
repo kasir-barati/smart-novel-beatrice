@@ -27,12 +27,14 @@ GENERATE_AUDIO_MUTATION = """
         $voice: String!
         $genUploadUrl: String!
         $statusCallbackUrl: String!
+        $instruct: String
     ) {
         generateAudio(
             text: $text
             voice: $voice
             genUploadUrl: $genUploadUrl
             statusCallbackUrl: $statusCallbackUrl
+            instruct: $instruct
         ) {
             jobId
         }
@@ -98,6 +100,49 @@ async def test_generate_audio_returns_202_and_publishes_to_the_queue(
     queued_requests = wiremock.requests_for("/status-callback")
     assert len(queued_requests) == 1
     assert json.loads(queued_requests[0]["body"]) == {"status": "queued"}
+
+
+async def test_generate_audio_publishes_instruct_when_given(
+    http_client: AsyncClient,
+    wiremock: WireMockClient,
+    rabbitmq_host_url: str,
+) -> None:
+    """
+    app_container (tests/conftest.py) defaults TTS__DEFAULT_PROVIDER to Qwen3-TTS, so
+    this only exercises the accept-and-publish path. The reject-when-Gemini path needs
+    a differently-configured app instance and is covered at the unit tier instead
+    (src/modules/audio/resolver__test.py::test_generate_audio_rejects_instruct_when_provider_is_not_qwen).
+    """
+
+    _stub_voices(wiremock)
+    wiremock.stub("POST", "/status-callback", status=200, json_body={"ok": True})
+
+    response = await http_client.post(
+        "/graphql",
+        json={
+            "query": GENERATE_AUDIO_MUTATION,
+            "variables": _variables(instruct="speak in a whisper"),
+        },
+    )
+
+    assert response.status_code == 202, response.text
+    job_id = response.json()["data"]["generateAudio"]["jobId"]
+
+    connection = await aio_pika.connect_robust(rabbitmq_host_url)
+    try:
+        channel = await connection.channel()
+        queue = await channel.declare_queue(
+            "beatrice.generate_audio", durable=True, arguments={"x-queue-type": "quorum"}
+        )
+        incoming = await queue.get(timeout=10)
+        assert incoming is not None
+        payload = json.loads(incoming.body)
+        await incoming.ack()
+    finally:
+        await connection.close()
+
+    assert payload["jobId"] == job_id
+    assert payload["instruct"] == "speak in a whisper"
 
 
 async def test_generate_audio_rejects_oversized_text(

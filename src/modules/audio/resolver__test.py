@@ -8,7 +8,7 @@ import pytest
 from strawberry.types import Info
 
 from src.modules.audio import resolver
-from src.modules.audio.exceptions import InvalidVoiceError
+from src.modules.audio.exceptions import InstructNotSupportedError, InvalidVoiceError
 from src.modules.audio.types import Voice
 from src.utils import get_settings
 
@@ -215,6 +215,62 @@ async def test_generate_audio_omits_authorization_header_when_absent(
 
     assert "authorization" not in published[0]["headers"]
     assert calls[0]["headers"] == {}
+
+
+async def test_generate_audio_rejects_instruct_when_provider_is_not_qwen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TTS__DEFAULT_PROVIDER", "gemini-tts")
+    monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
+
+    with pytest.raises(InstructNotSupportedError):
+        await resolver.generate_audio(
+            text="hello",
+            voice="known-voice",
+            gen_upload_url="https://client.example.com/upload",
+            status_callback_url="https://client.example.com/status",
+            info=_fake_info(),
+            instruct="speak in a whisper",
+        )
+
+
+async def test_generate_audio_includes_instruct_in_published_body_when_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
+    published: list[dict[str, Any]] = []
+    monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish(published))
+    monkeypatch.setattr(resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient([], fail=False))
+
+    await resolver.generate_audio(
+        text="hello",
+        voice="known-voice",
+        gen_upload_url="https://client.example.com/upload",
+        status_callback_url="https://client.example.com/status",
+        info=_fake_info(),
+        instruct="speak in a whisper",
+    )
+
+    assert published[0]["body"]["instruct"] == "speak in a whisper"
+
+
+async def test_generate_audio_omits_instruct_from_published_body_when_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
+    published: list[dict[str, Any]] = []
+    monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish(published))
+    monkeypatch.setattr(resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient([], fail=False))
+
+    await resolver.generate_audio(
+        text="hello",
+        voice="known-voice",
+        gen_upload_url="https://client.example.com/upload",
+        status_callback_url="https://client.example.com/status",
+        info=_fake_info(),
+    )
+
+    assert "instruct" not in published[0]["body"]
 
 
 async def test_generate_audio_does_not_fail_when_queued_callback_errors(

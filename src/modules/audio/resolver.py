@@ -17,10 +17,10 @@ from pydantic.functional_validators import AfterValidator
 from strawberry.types import Info
 
 from src.modules.audio.callback_urls import validate_callback_url
-from src.modules.audio.exceptions import InvalidVoiceError
+from src.modules.audio.exceptions import InstructNotSupportedError, InvalidVoiceError
 from src.modules.audio.provider import build_provider
 from src.modules.audio.rabbitmq import publish_generate_audio_job
-from src.utils import get_settings, spectaql_example
+from src.utils import TtsProviderName, get_settings, spectaql_example
 
 
 _logger = logging.getLogger(__name__)
@@ -108,6 +108,19 @@ async def generate_audio(
         ),
     ],
     info: Info,
+    instruct: Annotated[
+        str | None,
+        strawberry.argument(
+            description=(
+                "Qwen3-TTS-only. A style guide applied to the whole call, e.g. 'A male "
+                "narrator with a clear voice. Treat bracketed words like [dramatic] as "
+                "emotion cues, not literal text.' text is never parsed or stripped by "
+                "Beatrice — any inline tags in it are passed through verbatim for the "
+                "model to interpret per this guide. Rejected when the configured "
+                "provider isn't Qwen3-TTS."
+            ),
+        ),
+    ] = None,
 ) -> GenerateAudioResult:
     """generateAudio resolver: validate, publish to RabbitMQ, respond immediately with a jobId."""
 
@@ -115,6 +128,10 @@ async def generate_audio(
 
     if voice not in voices:
         raise InvalidVoiceError(voice=voice)
+
+    default_provider = get_settings().tts.default_provider
+    if instruct is not None and default_provider is not TtsProviderName.QWEN3_TTS:
+        raise InstructNotSupportedError(provider=default_provider)
 
     request = info.context["request"]
     authorization = request.headers.get("authorization")
@@ -124,13 +141,15 @@ async def generate_audio(
     if authorization is not None:
         message_headers["authorization"] = authorization
 
-    message_body = {
+    message_body: dict[str, str] = {
         "jobId": job_id,
         "text": text,
         "voice": voice,
         "genUploadUrl": gen_upload_url,
         "statusCallbackUrl": status_callback_url,
     }
+    if instruct is not None:
+        message_body["instruct"] = instruct
 
     await publish_generate_audio_job(
         settings=get_settings().rabbitmq,
