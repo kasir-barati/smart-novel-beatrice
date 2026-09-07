@@ -27,6 +27,21 @@ from testcontainers.ollama import OllamaContainer
 from tests.wiremock import WireMockClient
 
 
+def _dump_container_logs(container: DockerContainer, name: str) -> None:
+    """
+    Echoes a container's stdout/stderr to the pytest process, gated behind
+    ``DUMP_CONTAINER_LOGS`` — off by default since it's noisy (esp. JSON logs)
+    and only useful while actively debugging.
+    """
+
+    if not os.environ.get("DUMP_CONTAINER_LOGS"):
+        return
+
+    stdout, stderr = container.get_logs()
+    print(f"\n===== {name} stdout =====\n{stdout.decode(errors='replace')}")
+    print(f"===== {name} stderr =====\n{stderr.decode(errors='replace')}")
+
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 CONTAINER_PORT = 3000
 OLLAMA_MODEL = "qwen2.5:3b"
@@ -169,6 +184,8 @@ def app_container(
         .with_env("LLM__BASE_URL", f"http://{OLLAMA_NETWORK_ALIAS}:11434/v1")
         .with_env("LLM__MODEL", OLLAMA_MODEL)
         .with_env("LLM__TIMEOUT_MS", "180000")
+        .with_env("NORMALIZE_TTS__TEMPERATURE", "0")
+        .with_env("EXPLAIN_WORD__TEMPERATURE", "0")
         .with_env("TTS__QWEN__BASE_URL", f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}")
         .with_env("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", WIREMOCK_NETWORK_ALIAS)
         .with_env("RABBITMQ__CONNECTION_STRING", rabbitmq_internal_url)
@@ -185,6 +202,7 @@ def app_container(
     try:
         yield container
     finally:
+        _dump_container_logs(container, "app_container")
         container.stop()
 
 
@@ -223,8 +241,13 @@ def worker_container(
         .waiting_for(LogMessageWaitStrategy("worker ready").with_startup_timeout(30))
     )
 
-    with container:
+    container.start()
+
+    try:
         yield container
+    finally:
+        _dump_container_logs(container, "worker_container")
+        container.stop()
 
 
 @pytest.fixture(scope="session")

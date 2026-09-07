@@ -17,7 +17,7 @@ from src.utils import Settings, get_settings, load_prompt
 
 
 AGENT_NAME = "normalize_tts"
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"
 _PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 settings = get_settings()
 

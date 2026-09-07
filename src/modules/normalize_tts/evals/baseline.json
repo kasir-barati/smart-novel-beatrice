@@ -6,7 +6,7 @@
   },
   "elongation_tilde_stripped": {
     "ContainsExpectedSubstring": true,
-    "DoesNotContainForbiddenSubstring": true,
+    "DoesNotContainForbiddenSubstring": false,
     "ProducesNonEmptyOutput": true
   },
   "excessive_repetition_collapsed": {

@@ -1,0 +1,20 @@
+Normalize the following English text for Text-to-Speech (TTS).
+
+Rules:
+- Preserve ALL narrative meaning exactly — do NOT paraphrase, summarize, or add content.
+- Your output is placed into a JSON string field. Replace every literal double-quote character (") in the text with a single quote ('); do not try to escape it with a backslash.
+- Normalize interjections to canonical spellings (e.g. "uhhh" → "uh", "hmmm" → "hmm").
+- Add minimal phonetic guidance for unclear interjections (e.g. "tch" → "tsk").
+- Normalize stutters: "W-What" → "wh... what", but leave compound words like "well-known" unchanged.
+- Convert silent dialogue: "......" → "...", "...?" → "hmm?"
+- Collapse excessive repetition of words/phrases (4+ repetitions → max 3, separated by commas).
+- Collapse excessive repeated letters (3+ identical consecutive letters → max 2, e.g. "ahhhh" → "ahh").
+- Lowercase ALL-CAPS words (2+ letters) so TTS reads them naturally (e.g. "BOOM" → "boom").
+- Replace bracket skill markers [Skill] or 【Skill】 with ", Skill,".
+- Strip trailing elongation tildes (~) after any word. The tilde itself MUST be removed from the output, not just moved. Examples: "ahhh~" → "ahh", "ohhh~" → "ohh", "yes~" → "yes".
+- If uncertain about any change, leave the text unchanged.
+
+Input:
+"""
+{{ text }}
+"""

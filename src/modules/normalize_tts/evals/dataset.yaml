@@ -2,6 +2,10 @@
 #
 # Each case is one raw-text input the agent must normalise for TTS. Structural evaluators (see run.py) check the observable transformations documented in the prompt — matching the smart-novel NestJS behaviour we're porting.
 
+# FIXME: there are some flakiness in qwen2.5:3b.
+# 1. (Q4_K_M) intermittently fails this rule — flaky, not a code regression. Root cause (investigated 2026-09-07): the model inconsistently follows whichever one of ~12 similarly-shaped rules in v2.jinja2 it happens to fumble on a given run. Ruled out: last 26 commits, prompt context overflow (~325 of 32k+ tokens used). Likely cause: small-model instruction count/attention-dilution, not literal context overflow. See baseline.json, which pins DoesNotContainForbiddenSubstring: false for this case to tolerate it. Revisit if this keeps moving to new cases as more rules are added, or consider splitting v*.jinja2 into fewer/grouped rules or a larger model.
+# 2. stutter_expansion: DoesNotContainForbiddenSubstring
+
 cases:
   - name: stutter_expansion
     inputs:

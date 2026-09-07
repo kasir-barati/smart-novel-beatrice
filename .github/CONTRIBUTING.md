@@ -72,6 +72,7 @@ Three tiers. Each answers a different question. Put each new test in the tier th
      - `presigned_upload_url_factory` / `minio_verify_client` / `minio_bucket` stand in for the S3-compatible object store — a real MinIO container with a real presigned PUT URL, not a mock of the presign/upload contract. `minio_bucket` is provisioned via the `mc` CLI, matching how a real deployment provisions buckets.
      - `worker_container` (`tests/conftest.py`) runs the actual consumer (`src/worker.py`) against the same queue `app_container` publishes to. It's function-scoped, unlike `app_container` and the other infra fixtures — a session-scoped worker would race any test that inspects a message directly off the queue via `queue.get()` (like the plain publish-only `generateAudio` tests), consuming it before the test can. Only request `worker_container` in tests that actually need the worker to process the message.
      - `aio_pika.Queue.get(timeout=N)` is a single, non-blocking poll — `timeout` bounds that one RPC call, not how long to wait for a message to show up. It's fine for a message published synchronously by the test itself (already sitting in the queue by the time you call `get()`), but wrong for anything the worker publishes asynchronously after a delay (e.g. a retry) — that needs an actual poll loop (`get(fail=False)` in a `while` with `asyncio.sleep` between attempts), or it'll raise `QueueEmpty` immediately instead of waiting.
+   - `DUMP_CONTAINER_LOGS=1 uv run pytest ...` prints `app_container`'s/`worker_container`'s stdout/stderr on teardown. Off by default. Use it to see `print`/`logger.*` calls in `src/`, which run inside the container and don't show up with `-s` alone. Test-only flag, unrelated to `LOGGING__LEVEL`.
 3. Evals:
    - **Question:** _Are the prompts producing outputs that satisfy our rules? Is the model still doing what we expect?_
    - Use [`pydantic-evals`](https://ai.pydantic.dev/evals/) to run each module's dataset against the live LLM and score each row with a set of structural evaluators.
@@ -87,6 +88,14 @@ Three tiers. Each answers a different question. Put each new test in the tier th
 **Deliberate quality change** (you improved the prompt on purpose, or intentionally changed the model / temperature / rules): review the new `report.json` values, then commit the new baseline with: `make evals_baseline`
 
 **Commit the updated baselines in the same PR as the change that caused them**, with a short justification in the commit message.
+
+## Prompt Versioning
+
+Prompts live at `src/modules/<module>/prompts/v1.jinja2`. The question that decides whether a change updates that file in place or ships as `v2.jinja2` is: **does this change what "correct output" means for existing callers/evals?**
+
+- **Update the existing version in place** when the prompt wasn't honoring its own contract — a bug fix, a flaky-output fix, a wording/clarity tweak — and `dataset.yaml`'s expectations don't need to change. The fix should converge back to the existing `baseline.json`, not require redefining it.
+- **Create a new version** (`v2.jinja2`, etc.) when you're intentionally changing behavior: new/removed rules, different normalization semantics, a model swap, or a rewrite where the old prompt isn't a strict subset/superset of the new rules. Also reach for a new version when you need to A/B the old and new prompt, or when rollback needs to be trivial (keep both files rather than relying on git history).
+- Signal to double check yourself: if fixing a bug required editing expected values in `dataset.yaml` beyond just making a previously-flaky case pass, that's evidence the change was actually behavioral and should have been a new version.
 
 ## Design & Code Philosophy
 
