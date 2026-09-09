@@ -13,10 +13,11 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --chmod=755 prepull-model.sh /usr/local/bin/prepull-model.sh
-RUN /usr/local/bin/prepull-model.sh
+COPY prepull-model.sh /usr/local/bin/prepull-model.sh
+RUN chmod 755 /usr/local/bin/prepull-model.sh && /usr/local/bin/prepull-model.sh
 
-COPY --chmod=755 healthcheck.sh /usr/local/bin/healthcheck.sh
+COPY healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod 755 /usr/local/bin/healthcheck.sh
 HEALTHCHECK --interval=30s --timeout=5s --retries=5 --start-period=45s CMD ["/usr/local/bin/healthcheck.sh"]
 
 # IMPORTANT: prepull-model.sh stops the daemon when it's done. We start a fresh one here so the container becomes usable.

@@ -190,7 +190,7 @@ async def test_generate_audio_publishes_and_responds_202(monkeypatch: pytest.Mon
     assert published[0]["headers"]["authorization"] == "Bearer secret"
     assert "timestamp" in published[0]["headers"]
     assert len(calls) == 1
-    assert calls[0]["json"] == {"status": "queued"}
+    assert calls[0]["json"] == {"status": "queued", "jobId": result.job_id}
     assert calls[0]["headers"] == {"authorization": "Bearer secret"}
 
 

@@ -109,11 +109,13 @@ async def generate_audio(
             description=(
                 "Callback Beatrice POSTs progress/state updates to, one call per event, "
                 "best-effort (a failed delivery is logged and never fails the job or blocks "
-                'retries). Bodies, in order: `{"status": "queued"}`; '
-                '`{"status": "generating" | "uploading", "percent": <int>}`; then '
-                'either `{"status": "completed", "fileSizeBytes": <int>}` or '
-                '`{"status": "failed", "failedAt": "<iso8601>", "error": '
-                '{"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "<str>"}}`. '
+                'retries). Every body includes `"jobId": "<jobId>"`. Bodies, in order: '
+                '`{"status": "queued", "jobId": "<jobId>"}`; '
+                '`{"status": "generating" | "uploading", "percent": <int>, "jobId": "<jobId>"}`; '
+                'then either `{"status": "completed", "fileSizeBytes": <int>, "jobId": "<jobId>"}` '
+                'or `{"status": "failed", "failedAt": "<iso8601>", "error": '
+                '{"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "<str>"}, '
+                '"jobId": "<jobId>"}`. '
                 "No response body is expected. Host must be in the "
                 "GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list."
             ),
@@ -188,7 +190,9 @@ async def _report_queued(
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
-                status_callback_url, json={"status": "queued"}, headers=headers
+                status_callback_url,
+                json={"status": "queued", "jobId": job_id},
+                headers=headers,
             )
             response.raise_for_status()
     except httpx.HTTPError as exc:

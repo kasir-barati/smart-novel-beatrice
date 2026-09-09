@@ -65,6 +65,7 @@ async def _post_status_update(
         )
         return
 
+    body = {**body, "jobId": job_id}
     headers = {"authorization": authorization} if authorization is not None else {}
 
     try:

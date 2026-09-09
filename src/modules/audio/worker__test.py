@@ -92,14 +92,18 @@ async def test_report_progress_posts_status_and_percent(monkeypatch: pytest.Monk
         status="generating",
         percent=12,
         authorization="Bearer secret",
-        job_id="job-1",
+        job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
     )
 
     assert calls == [
         {
             "method": "POST",
             "url": "http://client.example.com/status",
-            "json": {"status": "generating", "percent": 12},
+            "json": {
+                "status": "generating",
+                "percent": 12,
+                "jobId": "2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+            },
             "headers": {"authorization": "Bearer secret"},
         }
     ]
@@ -155,10 +159,14 @@ async def test_report_completed_posts_status_and_file_size(monkeypatch: pytest.M
         "http://client.example.com/status",
         file_size_bytes=4096,
         authorization=None,
-        job_id="job-1",
+        job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
     )
 
-    assert calls[0]["json"] == {"status": "completed", "fileSizeBytes": 4096}
+    assert calls[0]["json"] == {
+        "status": "completed",
+        "fileSizeBytes": 4096,
+        "jobId": "2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+    }
 
 
 async def test_report_failed_posts_status_error_code_and_message(
@@ -174,13 +182,14 @@ async def test_report_failed_posts_status_error_code_and_message(
         code=SynthesizeErrorCode.UPLOAD_ERROR,
         message="boom",
         authorization=None,
-        job_id="job-1",
+        job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
     )
 
     body = calls[0]["json"]
     assert body["status"] == "failed"
     assert "failedAt" in body
     assert body["error"] == {"code": "UPLOAD_ERROR", "message": "boom"}
+    assert body["jobId"] == "2bce49d6-6592-4ed3-b421-f913b9ecc3bd"
 
 
 class _FakeProvider:

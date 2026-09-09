@@ -99,7 +99,7 @@ async def test_generate_audio_returns_202_and_publishes_to_the_queue(
 
     queued_requests = wiremock.requests_for("/status-callback")
     assert len(queued_requests) == 1
-    assert json.loads(queued_requests[0]["body"]) == {"status": "queued"}
+    assert json.loads(queued_requests[0]["body"]) == {"status": "queued", "jobId": job_id}
 
 
 async def test_generate_audio_publishes_instruct_when_given(
@@ -208,6 +208,7 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
     )
 
     assert response.status_code == 202, response.text
+    job_id = response.json()["data"]["generateAudio"]["jobId"]
 
     stat = await _wait_for_object(minio_verify_client, minio_bucket, object_name)
 
@@ -216,9 +217,10 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
 
     status_updates = [json.loads(r["body"]) for r in wiremock.requests_for("/status-callback")]
     completed = next(u for u in status_updates if u.get("status") == "completed")
-    assert completed == {"status": "completed", "fileSizeBytes": len(audio_bytes)}
+    assert completed == {"status": "completed", "fileSizeBytes": len(audio_bytes), "jobId": job_id}
     statuses_seen = [u["status"] for u in status_updates]
     assert statuses_seen == ["queued", "generating", "generating", "uploading", "completed"]
+    assert all(u["jobId"] == job_id for u in status_updates)
 
 
 async def test_generate_audio_pipeline_forwards_instruct_to_the_provider(
@@ -311,6 +313,7 @@ async def test_generate_audio_exhausts_retries_and_lands_on_the_dlq(
     )
 
     assert response.status_code == 202, response.text
+    job_id = response.json()["data"]["generateAudio"]["jobId"]
 
     connection = await aio_pika.connect_robust(rabbitmq_host_url)
     try:
@@ -331,3 +334,4 @@ async def test_generate_audio_exhausts_retries_and_lands_on_the_dlq(
     failed_updates = [u for u in status_updates if u.get("status") == "failed"]
     assert len(failed_updates) == 2
     assert all(u["error"]["code"] == "TTS_PROVIDER_ERROR" for u in failed_updates)
+    assert all(u["jobId"] == job_id for u in failed_updates)
