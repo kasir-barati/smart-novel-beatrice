@@ -92,8 +92,13 @@ async def generate_audio(
         AfterValidator(validate_callback_url),
         strawberry.argument(
             description=(
-                "Callback Beatrice POSTs to when it needs a presigned upload URL. Host must be "
-                "in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list."
+                "Callback Beatrice POSTs to exactly once, when it needs a presigned upload URL "
+                "for the synthesized audio. Sent with header `Idempotency-Key: <jobId>`, so a "
+                "retried call is recognized as the same request rather than minting a second "
+                'presigned URL. Must respond with JSON shaped `{"url": "<presigned-url>"}` — '
+                "Beatrice then PUTs the audio bytes directly to that URL with "
+                "`Content-Type: audio/mpeg`. Host must be in the "
+                "GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list."
             ),
         ),
     ],
@@ -102,7 +107,14 @@ async def generate_audio(
         AfterValidator(validate_callback_url),
         strawberry.argument(
             description=(
-                "Callback Beatrice POSTs progress/state updates to. Host must be in the "
+                "Callback Beatrice POSTs progress/state updates to, one call per event, "
+                "best-effort (a failed delivery is logged and never fails the job or blocks "
+                'retries). Bodies, in order: `{"status": "queued"}`; '
+                '`{"status": "generating" | "uploading", "percent": <int>}`; then '
+                'either `{"status": "completed", "fileSizeBytes": <int>}` or '
+                '`{"status": "failed", "failedAt": "<iso8601>", "error": '
+                '{"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "<str>"}}`. '
+                "No response body is expected. Host must be in the "
                 "GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list."
             ),
         ),
