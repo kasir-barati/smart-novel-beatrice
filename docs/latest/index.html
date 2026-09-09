@@ -135,7 +135,7 @@
                 </div>
                 <div class="example-section example-section-is-code operation-response-example">
                   <h5>Response</h5>
-                  <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span><span class="hljs-attr">"data"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span><span class="hljs-attr">"audioVoices"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"xyz789"</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">}</span>
+                  <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span><span class="hljs-attr">"data"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span><span class="hljs-attr">"audioVoices"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">"abc123"</span><span class="hljs-punctuation">]</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">}</span>
 </code></pre>
                 </div>
               </div>
@@ -332,13 +332,13 @@
                         <td>
                           <span class="property-name"><code>genUploadUrl</code></span> - <span class="property-type"><a href="#definition-String"><code>String!</code></a></span>
                         </td>
-                        <td> Callback Beatrice POSTs to when it needs a presigned upload URL. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list. </td>
+                        <td> Callback Beatrice POSTs to exactly once, when it needs a presigned upload URL for the synthesized audio. Sent with header <code>Idempotency-Key: &lt;jobId&gt;</code>, so a retried call is recognized as the same request rather than minting a second presigned URL. Must respond with JSON shaped <code>{"url": "&lt;presigned-url&gt;"}</code> — Beatrice then PUTs the audio bytes directly to that URL with <code>Content-Type: audio/mpeg</code>. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list. </td>
                       </tr>
                       <tr>
                         <td>
                           <span class="property-name"><code>statusCallbackUrl</code></span> - <span class="property-type"><a href="#definition-String"><code>String!</code></a></span>
                         </td>
-                        <td> Callback Beatrice POSTs progress/state updates to. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list. </td>
+                        <td> Callback Beatrice POSTs progress/state updates to, one call per event, best-effort (a failed delivery is logged and never fails the job or blocks retries). Bodies, in order: <code>{"status": "queued"}</code>; <code>{"status": "generating" | "uploading", "percent": &lt;int&gt;}</code>; then either <code>{"status": "completed", "fileSizeBytes": &lt;int&gt;}</code> or <code>{"status": "failed", "failedAt": "&lt;iso8601&gt;", "error": {"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "&lt;str&gt;"}}</code>. No response body is expected. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list. </td>
                       </tr>
                       <tr>
                         <td>
@@ -377,9 +377,9 @@
                   <h5>Variables</h5>
                   <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span>
   <span class="hljs-attr">"text"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"The graffiti was ephemeral."</span><span class="hljs-punctuation">,</span>
-  <span class="hljs-attr">"voice"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span><span class="hljs-punctuation">,</span>
-  <span class="hljs-attr">"genUploadUrl"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"xyz789"</span><span class="hljs-punctuation">,</span>
-  <span class="hljs-attr">"statusCallbackUrl"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">"voice"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"xyz789"</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">"genUploadUrl"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">"statusCallbackUrl"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"xyz789"</span><span class="hljs-punctuation">,</span>
   <span class="hljs-attr">"instruct"</span><span class="hljs-punctuation">:</span> <span class="hljs-literal"><span class="hljs-keyword">null</span></span>
 <span class="hljs-punctuation">}</span>
 </code></pre>
@@ -450,7 +450,7 @@
                 </div>
                 <div class="example-section example-section-is-code operation-response-example">
                   <h5>Response</h5>
-                  <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span><span class="hljs-attr">"data"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span><span class="hljs-attr">"normalizeTextForTts"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"xyz789"</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">}</span>
+                  <pre><code class="hljs language-json"><span class="hljs-punctuation">{</span><span class="hljs-attr">"data"</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span><span class="hljs-attr">"normalizeTextForTts"</span><span class="hljs-punctuation">:</span> <span class="hljs-string">"abc123"</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">}</span>
 </code></pre>
                 </div>
               </div>
@@ -467,6 +467,11 @@
                 </div>
               </div>
               <div class="doc-examples">
+                <div class="example-section example-section-is-code">
+                  <h5>Example</h5>
+                  <pre><code class="hljs language-json"><span class="hljs-literal"><span class="hljs-keyword">true</span></span>
+</code></pre>
+                </div>
               </div>
             </div>
           </section>
@@ -573,7 +578,7 @@
               <div class="doc-examples">
                 <div class="example-section example-section-is-code">
                   <h5>Example</h5>
-                  <pre><code class="hljs language-gql"><span class="hljs-symbol">"xyz789"</span>
+                  <pre><code class="hljs language-gql"><span class="hljs-symbol">"abc123"</span>
 </code></pre>
                 </div>
               </div>
