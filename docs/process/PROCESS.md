@@ -11,6 +11,7 @@
 6. Run `make evals` if any `prompts/*.jinja2` file changed; if the regression is deliberate, commit the updated baseline per `.github/CONTRIBUTING.md`.
    - When a step's `### Test` says to verify manually (no pytest tier — e.g. dev-only infra), budget for that verification surfacing environment/dependency facts no code review would catch (a library's model/checkpoint capabilities, realistic CPU timing under load) — actually run it rather than treating the AC as sufficient on paper. When it does surface something, fix it and update `REQUIREMENTS.md`'s AC for that step to match reality (surfaced by the `instruct` feature's step 4 — the shim's model checkpoint didn't support the target method, and the default timeout was too low for real CPU inference).
 7. Commit the step on its own, with a message naming the `REQUIREMENTS.md` step number.
+   - A pre-commit hook runs the full unit suite (`make test`) and blocks the commit on any failure — so if this step removes/renames something a later step's file still references (e.g. a settings field), fold the minimal fix to that other file into this commit rather than leaving it red until the next step (surfaced by TTS-provider-swap step 1 — removing `QwenTtsSettings.voices_path` broke `qwen_provider.py`, which wasn't otherwise in scope).
 8. IMPORTANT: follow the instructions in `SELF_IMPROVE.md` to improve yourself.
 
 You MUST complete step 8 (self-improvement) before you stop.
