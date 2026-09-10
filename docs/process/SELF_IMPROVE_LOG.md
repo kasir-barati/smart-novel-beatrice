@@ -39,3 +39,22 @@ the new synthesize path/body shape and two-hop stub, dropping the now-pointless
 Extended `PROCESS.md` step 5's manual-verification note to also cover this case: a
 "should still pass unmodified" claim about an *existing* pytest-tier test is a guess,
 not a fact, and needs the same "actually run it" treatment.
+
+## 2026-09-10 — TTS-provider-swap step 3
+
+Two things surfaced during manual verification, both already covered by existing
+`PROCESS.md`/log guidance rather than needing new rules:
+
+- `compose.yml`'s `beatrice` service needed `TTS__QWEN__VOICES` set to match the
+  shim's static `_VOICES` mapping — step 3's scope (`local-setup/qwen-tts/server.py`)
+  didn't call this out, but without it `audioVoices`/`generateAudio` have nothing to
+  validate against. Same "actually run it, fix what's missing" pattern as steps 1-2.
+- Host port 9000 (MinIO) was taken by an unrelated local process (the user's Jupyter
+  notebook), blocking `docker compose up`. Not a code issue — asked the user how to
+  proceed rather than guessing, then moved MinIO's host-side port off 9000 by default
+  (`MINIO_HOST_PORT`, defaulting to 9010) since internal traffic only ever uses
+  `minio:9000`. One-off environment conflict, not a process gap — no `PROCESS.md`
+  change from this alone.
+
+No `PROCESS.md` edit this round — both issues were instances of patterns already
+captured by the step 1/2 entries above.
