@@ -39,6 +39,7 @@ dev = [
     "flake8-aaa>=0.17.2",
     "ipykernel>=7.3.0",
     "pip>=26.2.1",
+    "miniaudio>=1.71",
 ]
 
 [build-system]

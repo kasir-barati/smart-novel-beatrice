@@ -60,6 +60,7 @@ src/modules/*/evals/report.json
 # Local scratch
 tmp/
 scratch/
+local-setup/notebooks/*.mp3
 
 # Generated code reviews (local-setup/code-reviews/ skill output)
 local-setup/code-reviews/
