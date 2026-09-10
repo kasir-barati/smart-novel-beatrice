@@ -12,6 +12,9 @@ services:
       RABBITMQ__CONNECTION_STRING: amqp://guest:guest@rabbitmq:5672/
       GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS: presign-server,localhost
       TTS__QWEN__BASE_URL: http://qwen-tts:8001
+      # Matches the qwen-tts shim's `_VOICES` mapping (local-setup/qwen-tts/server.py) —
+      # voices are static config now, not fetched from a voices-listing endpoint.
+      TTS__QWEN__VOICES: default
       # CustomVoice CPU inference is slow enough locally to exceed the 30s client default —
       # 120s still wasn't enough for a few hundred characters of text, so this is generous.
       TTS__QWEN__TIMEOUT_MS: "300000"
@@ -66,7 +69,7 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - 9000:9000
+      - "${MINIO_HOST_PORT:-9010}:9000" # host side only; kept off 9000, a common local-tooling default (e.g. Jupyter)
       - 9001:9001 # console UI
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:9000/minio/health/live"]
