@@ -18,3 +18,24 @@ literal), leaving the rest of the DashScope migration (synthesize body shape,
 Changed `PROCESS.md` step 7 to call this out generally: a step that removes/renames
 something another file depends on must fold that file's minimal fix into the same
 commit, since the test gate doesn't allow a step-spanning red window.
+
+## 2026-09-10 — TTS-provider-swap step 2
+
+Step 2's `### Test` subsection asserted the existing `generateAudio` integration
+test "should still pass unmodified — run it to confirm rather than assume." Running
+it (as instructed) showed that was wrong: `Qwen3TtsProvider.get_voices` no longer
+makes an HTTP call (static `voices` config, from step 1), so the `/v1/voices` WireMock
+stub was dead and the `qwen-voice-a` voice was no longer in `TTS__QWEN__VOICES`,
+making every test fail voice validation before even reaching synthesis. Separately,
+`synthesize`'s new two-hop DashScope contract (JSON body with an audio URL, then a
+second GET) meant the old single-hop `/v1/audio/speech` raw-bytes stub no longer
+matched what the provider actually calls.
+
+Fix: added `TTS__QWEN__VOICES` to `app_container`'s env in `tests/conftest.py`, and
+rewrote the integration test's stubbing (`tests/test_generate_audio_graphql.py`) to
+the new synthesize path/body shape and two-hop stub, dropping the now-pointless
+`/v1/voices` stub entirely.
+
+Extended `PROCESS.md` step 5's manual-verification note to also cover this case: a
+"should still pass unmodified" claim about an *existing* pytest-tier test is a guess,
+not a fact, and needs the same "actually run it" treatment.
