@@ -28,6 +28,7 @@ class GeminiTtsProvider:
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._output_dir = output_dir
+        self._voices_path = settings.voices_path
         self._client = httpx.AsyncClient(
             base_url=settings.base_url,
             headers={"X-Goog-Api-Key": settings.api_key} if settings.api_key else {},
@@ -37,11 +38,11 @@ class GeminiTtsProvider:
 
     async def get_voices(self, *, language: str | None = None) -> list[Voice]:
         params = {"languageCode": language} if language is not None else {}
-        response = await self._client.get("/v1/voices", params=params)
+        response = await self._client.get(self._voices_path, params=params)
         if response.is_error:
             raise TtsProviderError(
                 provider=PROVIDER_NAME,
-                message=f"GET /v1/voices -> {response.status_code}",
+                message=f"GET {self._voices_path} -> {response.status_code}",
                 status_code=response.status_code,
             )
 

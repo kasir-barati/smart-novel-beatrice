@@ -1,6 +1,6 @@
 """
 Qwen3-TTS provider client, called through a third-party OpenAI-compatible inference
-host (DeepInfra by default — see `QwenTtsSettings` for why the paths are configurable).
+host. Voices are static config (`QwenTtsSettings.voices`) — see `QwenTtsSettings` for why.
 """
 
 from __future__ import annotations
@@ -38,16 +38,7 @@ class Qwen3TtsProvider:
         if language is not None:
             raise ValueError("Qwen3-TTS does not support filtering voices by language.")
 
-        response = await self._client.get(self._settings.voices_path)
-        if response.is_error:
-            raise TtsProviderError(
-                provider=PROVIDER_NAME,
-                message=f"GET {self._settings.voices_path} -> {response.status_code}",
-                status_code=response.status_code,
-            )
-
-        payload = response.json()
-        return [Voice(name=entry["name"]) for entry in payload.get("voices", [])]
+        return [Voice(name=name) for name in self._settings.voices_list]
 
     async def synthesize(
         self, *, text: str, voice: str, instruct: str | None = None

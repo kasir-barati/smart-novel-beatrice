@@ -5,7 +5,14 @@ from collections.abc import Iterator
 
 import pytest
 
-from src.utils import CallbackSettings, LoggingMode, LogLevel, Settings, get_settings
+from src.utils import (
+    CallbackSettings,
+    LoggingMode,
+    LogLevel,
+    QwenTtsSettings,
+    Settings,
+    get_settings,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -112,3 +119,19 @@ def test_callback_settings_allowed_hosts_list_splits_and_strips_whitespace() -> 
     result = CallbackSettings(allowed_hosts="a.example.com,  b.example.com ,")
 
     assert result.allowed_hosts_list == ["a.example.com", "b.example.com"]
+
+
+def test_qwen_tts_settings_voices_list_defaults_empty() -> None:
+    result = QwenTtsSettings()
+
+    assert result.voices_list == []
+
+
+def test_qwen_tts_settings_voices_list_splits_and_strips_whitespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("TTS__QWEN__VOICES", "a,  b ,")
+
+    result = Settings()
+
+    assert result.tts.qwen.voices_list == ["a", "b"]

@@ -82,25 +82,32 @@ class GeminiTtsSettings(BaseSettings):
 
     base_url: str = Field(default="https://texttospeech.googleapis.com")
     api_key: str = Field(default="", description="Sent as the X-Goog-Api-Key header.")
+    voices_path: str = Field(default="/v1/voices")
     timeout_ms: int = Field(default=30_000, ge=1_000)
 
 
 class QwenTtsSettings(BaseSettings):
     """
-    Qwen3-TTS, served through a third-party OpenAI-compatible inference host.
+    Qwen3-TTS, served through Alibaba Cloud DashScope's native REST API.
 
-    The exact REST surface varies by host — DeepInfra and empiriolabs.ai document
-    ``GET /v1/voices``, but vLLM-Omni's OpenAI-compatible shim uses
-    ``GET /v1/audio/voices`` instead. ``voices_path``/``synthesize_path`` default to
-    DeepInfra's documented routes; override via env if pointed at a different host.
+    DashScope has no voices-listing endpoint — voices are documented statically,
+    not queryable — so ``voices`` is a static, comma-separated list read from
+    ``TTS__QWEN__VOICES`` instead of a ``voices_path`` to call.
     """
 
-    base_url: str = Field(default="https://api.deepinfra.com")
+    base_url: str = Field(default="https://dashscope-intl.aliyuncs.com")
     api_key: str = Field(default="")
-    model: str = Field(default="Qwen/Qwen3-TTS")
-    voices_path: str = Field(default="/v1/voices")
-    synthesize_path: str = Field(default="/v1/audio/speech")
+    model: str = Field(default="qwen3-tts-instruct-flash")
+    voices: str = Field(
+        default="",
+        description="Comma-separated static voice names (no voices-listing endpoint exists).",
+    )
+    synthesize_path: str = Field(default="/api/v1/services/aigc/multimodal-generation/generation")
     timeout_ms: int = Field(default=30_000, ge=1_000)
+
+    @property
+    def voices_list(self) -> list[str]:
+        return [voice.strip() for voice in self.voices.split(",") if voice.strip()]
 
 
 class TtsProviderName(StrEnum):
