@@ -1,6 +1,8 @@
 """
-Qwen3-TTS provider client, called through a third-party OpenAI-compatible inference
-host. Voices are static config (`QwenTtsSettings.voices`) — see `QwenTtsSettings` for why.
+Qwen3-TTS provider client, talking to Alibaba Cloud DashScope's native REST API
+directly. Voices are static config (`QwenTtsSettings.voices`) — see `QwenTtsSettings`
+for why. English-only for now: DashScope's request body takes a `language_type`
+field, hardcoded here to `"English"`.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from src.utils import QwenTtsSettings
 
 
 PROVIDER_NAME = "qwen3-tts"
+_LANGUAGE_TYPE = "English"
 
 
 class Qwen3TtsProvider:
@@ -46,25 +49,34 @@ class Qwen3TtsProvider:
         self._output_dir.mkdir(parents=True, exist_ok=True)
         file_path = self._output_dir / f"{uuid.uuid4()}.mp3"
 
-        body: dict[str, str] = {"model": self._settings.model, "input": text, "voice": voice}
+        body: dict[str, object] = {
+            "model": self._settings.model,
+            "input": {"text": text, "voice": voice, "language_type": _LANGUAGE_TYPE},
+        }
         if instruct is not None:
-            body["instruct"] = instruct
+            body["instructions"] = instruct
 
-        async with self._client.stream(
-            "POST",
-            self._settings.synthesize_path,
-            json=body,
-        ) as response:
-            if response.is_error:
-                await response.aread()
+        response = await self._client.post(self._settings.synthesize_path, json=body)
+        if response.is_error:
+            raise TtsProviderError(
+                provider=PROVIDER_NAME,
+                message=f"POST {self._settings.synthesize_path} -> {response.status_code}",
+                status_code=response.status_code,
+            )
+
+        audio_url = response.json()["output"]["audio"]["url"]
+
+        async with self._client.stream("GET", audio_url) as download:
+            if download.is_error:
+                await download.aread()
                 raise TtsProviderError(
                     provider=PROVIDER_NAME,
-                    message=f"POST {self._settings.synthesize_path} -> {response.status_code}",
-                    status_code=response.status_code,
+                    message=f"GET {audio_url} -> {download.status_code}",
+                    status_code=download.status_code,
                 )
 
             with file_path.open("wb") as fh:
-                async for chunk in response.aiter_bytes():
+                async for chunk in download.aiter_bytes():
                     fh.write(chunk)
 
         return SynthesizedAudio(file_path=file_path)

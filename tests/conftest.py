@@ -166,9 +166,11 @@ def app_container(
     """
     Start the beatrice container on the shared network with Ollama + collector.
 
-    ``TTS__QWEN__BASE_URL`` points at WireMock rather than the real DeepInfra API —
-    the default TTS provider is qwen3-tts, and `audioVoices`/`generateAudio` tests
-    stub its response there instead of hitting a live third-party endpoint.
+    ``TTS__QWEN__BASE_URL`` points at WireMock rather than the real DashScope API —
+    the default TTS provider is qwen3-tts, and `generateAudio` tests stub its
+    synthesize response there instead of hitting a live third-party endpoint.
+    ``TTS__QWEN__VOICES`` is static config now (no voices-listing endpoint exists),
+    so it's set directly here rather than stubbed.
     ``GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS`` allow-lists the WireMock alias so
     `generateAudio`'s genUploadUrl/statusCallbackUrl can point at it in tests.
     ``RABBITMQ__WORKER_ENABLED=false`` because this container is session-scoped and
@@ -187,6 +189,7 @@ def app_container(
         .with_env("NORMALIZE_TTS__TEMPERATURE", "0")
         .with_env("EXPLAIN_WORD__TEMPERATURE", "0")
         .with_env("TTS__QWEN__BASE_URL", f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}")
+        .with_env("TTS__QWEN__VOICES", "qwen-voice-a")
         .with_env("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", WIREMOCK_NETWORK_ALIAS)
         .with_env("RABBITMQ__CONNECTION_STRING", rabbitmq_internal_url)
         .with_env("RABBITMQ__WORKER_ENABLED", "false")

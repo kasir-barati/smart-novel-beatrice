@@ -42,8 +42,25 @@ GENERATE_AUDIO_MUTATION = """
 """
 
 
-def _stub_voices(wiremock: WireMockClient) -> None:
-    wiremock.stub("GET", "/v1/voices", status=200, json_body={"voices": [{"name": "qwen-voice-a"}]})
+_SYNTHESIZE_PATH = "/api/v1/services/aigc/multimodal-generation/generation"
+
+
+def _stub_synthesize(
+    wiremock: WireMockClient, wiremock_internal_url: str, *, audio_bytes: bytes, audio_path: str
+) -> None:
+    """
+    DashScope's synthesize endpoint returns a JSON body carrying a URL, not the audio
+    itself — stub both hops: the initial POST, and the follow-up GET the provider
+    makes to actually download the audio.
+    """
+
+    wiremock.stub(
+        "POST",
+        _SYNTHESIZE_PATH,
+        status=200,
+        json_body={"output": {"audio": {"url": f"{wiremock_internal_url}{audio_path}"}}},
+    )
+    wiremock.stub("GET", audio_path, status=200, body_bytes=audio_bytes)
 
 
 def _variables(**overrides: str) -> dict[str, str]:
@@ -62,7 +79,6 @@ async def test_generate_audio_returns_202_and_publishes_to_the_queue(
     wiremock: WireMockClient,
     rabbitmq_host_url: str,
 ) -> None:
-    _stub_voices(wiremock)
     wiremock.stub("POST", "/status-callback", status=200, json_body={"ok": True})
 
     response = await http_client.post(
@@ -114,7 +130,6 @@ async def test_generate_audio_publishes_instruct_when_given(
     (src/modules/audio/resolver__test.py::test_generate_audio_rejects_instruct_when_provider_is_not_qwen).
     """
 
-    _stub_voices(wiremock)
     wiremock.stub("POST", "/status-callback", status=200, json_body={"ok": True})
 
     response = await http_client.post(
@@ -148,8 +163,6 @@ async def test_generate_audio_publishes_instruct_when_given(
 async def test_generate_audio_rejects_oversized_text(
     http_client: AsyncClient, wiremock: WireMockClient
 ) -> None:
-    _stub_voices(wiremock)
-
     response = await http_client.post(
         "/graphql",
         json={
@@ -166,8 +179,6 @@ async def test_generate_audio_rejects_oversized_text(
 async def test_generate_audio_rejects_a_callback_host_not_on_the_allow_list(
     http_client: AsyncClient, wiremock: WireMockClient
 ) -> None:
-    _stub_voices(wiremock)
-
     response = await http_client.post(
         "/graphql",
         json={
@@ -184,6 +195,7 @@ async def test_generate_audio_rejects_a_callback_host_not_on_the_allow_list(
 async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
     http_client: AsyncClient,
     wiremock: WireMockClient,
+    wiremock_internal_url: str,
     worker_container: DockerContainer,
     minio_verify_client: Minio,
     minio_bucket: str,
@@ -195,9 +207,13 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
     presigned URL obtained through a stubbed genUploadUrl.
     """
 
-    _stub_voices(wiremock)
     audio_bytes = b"fake-audio-bytes-from-the-stubbed-provider"
-    wiremock.stub("POST", "/v1/audio/speech", status=200, body_bytes=audio_bytes)
+    _stub_synthesize(
+        wiremock,
+        wiremock_internal_url,
+        audio_bytes=audio_bytes,
+        audio_path="/files/pipeline-test.wav",
+    )
     object_name = "pipeline-test.mp3"
     presigned_url = presigned_upload_url_factory(object_name)
     wiremock.stub("POST", "/upload", status=200, json_body={"url": presigned_url})
@@ -226,6 +242,7 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
 async def test_generate_audio_pipeline_forwards_instruct_to_the_provider(
     http_client: AsyncClient,
     wiremock: WireMockClient,
+    wiremock_internal_url: str,
     worker_container: DockerContainer,
     minio_verify_client: Minio,
     minio_bucket: str,
@@ -233,9 +250,13 @@ async def test_generate_audio_pipeline_forwards_instruct_to_the_provider(
 ) -> None:
     """Same pipeline as above, but asserting instruct reaches the provider's request body."""
 
-    _stub_voices(wiremock)
     audio_bytes = b"fake-audio-bytes-from-the-stubbed-provider"
-    wiremock.stub("POST", "/v1/audio/speech", status=200, body_bytes=audio_bytes)
+    _stub_synthesize(
+        wiremock,
+        wiremock_internal_url,
+        audio_bytes=audio_bytes,
+        audio_path="/files/pipeline-instruct-test.wav",
+    )
     object_name = "pipeline-instruct-test.mp3"
     presigned_url = presigned_upload_url_factory(object_name)
     wiremock.stub("POST", "/upload", status=200, json_body={"url": presigned_url})
@@ -253,9 +274,9 @@ async def test_generate_audio_pipeline_forwards_instruct_to_the_provider(
 
     await _wait_for_object(minio_verify_client, minio_bucket, object_name)
 
-    synthesize_requests = wiremock.requests_for("/v1/audio/speech")
+    synthesize_requests = wiremock.requests_for(_SYNTHESIZE_PATH)
     assert len(synthesize_requests) == 1
-    assert json.loads(synthesize_requests[0]["body"])["instruct"] == "speak in a whisper"
+    assert json.loads(synthesize_requests[0]["body"])["instructions"] == "speak in a whisper"
 
 
 async def _wait_for_object(client: Minio, bucket: str, object_name: str, timeout: float = 20.0):
@@ -304,8 +325,7 @@ async def test_generate_audio_exhausts_retries_and_lands_on_the_dlq(
     and then dead-lettered.
     """
 
-    _stub_voices(wiremock)
-    wiremock.stub("POST", "/v1/audio/speech", status=500)
+    wiremock.stub("POST", _SYNTHESIZE_PATH, status=500)
     wiremock.stub("POST", "/status-callback", status=200, json_body={"ok": True})
 
     response = await http_client.post(

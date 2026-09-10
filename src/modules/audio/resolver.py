@@ -131,7 +131,8 @@ async def generate_audio(
                 "emotion cues, not literal text.' text is never parsed or stripped by "
                 "Beatrice — any inline tags in it are passed through verbatim for the "
                 "model to interpret per this guide. Rejected when the configured "
-                "provider isn't Qwen3-TTS."
+                "provider isn't Qwen3-TTS. Qwen3-TTS (and therefore instruct) is "
+                "English-only for now."
             ),
         ),
     ] = None,
