@@ -90,6 +90,9 @@ async def test_chunked_long_story_emits_gen_ai_token_metrics(
 
     # Act
     for index, chunk in enumerate(LONG_STORY_CHUNKS):
+        # CPU-only Ollama inference is slow and CI-runner-dependent (see
+        # docs/llm-latency-primer.md) — this test does 3 of these sequentially,
+        # so it needs more headroom than the client's default 240s.
         response = await http_client.post(
             "/graphql",
             headers={"x-app-user-id": user_id},
@@ -97,6 +100,7 @@ async def test_chunked_long_story_emits_gen_ai_token_metrics(
                 "query": NORMALIZE_TTS_MUTATION,
                 "variables": {"text": chunk},
             },
+            timeout=480.0,
         )
         assert response.status_code == 200, (index, response.text)
         body = response.json()
