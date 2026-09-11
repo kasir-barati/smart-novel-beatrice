@@ -23,3 +23,12 @@ the default 120s Bash timeout and moved to background automatically — worth bu
 for on a cold build, and worth polling for the specific service's health status
 (`docker compose ps` showing `healthy`) rather than just "any output," since a
 container can appear before it's actually ready to take traffic.
+
+## 2026-09-11 — clientContextId (caller-correlation-id), step 2
+
+Threaded `client_context_id` through `worker.py`'s `report_progress`/`report_completed`/
+`report_failed`/`_post_status_update` and every call site, mirroring step 1's pattern.
+Unit and integration tests passed on the first run; graphql-api-tester correctly
+skipped per the step's Test notes (no GraphQL surface changed). The cold
+`docker compose up --build -d` timeout observed in step 1 repeated here, so it's now
+promoted to `PROCESS.md` step 4 instead of staying a single-occurrence log note.
