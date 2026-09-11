@@ -9,6 +9,7 @@ An LLM-powered Python service exposing a **GraphQL API** enabling us to explain 
 - Comments only when necessary, this includes docstrings; don't add one just to restate what the name/code already say.
 - Be concise, short README, no emojis.
 - No extra feature, focus on what has been asked.
+- `BaseSettings` with a discriminator picking between interchangeable implementations (e.g. `Tts.default_provider`) → only the selected implementation's fields are required; enforce that via a `model_validator` on the parent, not a bare required field on each implementation.
 
 ## Development Process
 
