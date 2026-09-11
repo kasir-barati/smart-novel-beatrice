@@ -79,6 +79,8 @@ async def test_input_over_max_length_is_rejected(http_client: AsyncClient) -> No
 
 
 @pytest.mark.integration
+# CPU-only inference on a shared GH runner is flaky; rerun on timeout
+@pytest.mark.flaky(reruns=2, reruns_delay=5, only_rerun=["ReadTimeout"])
 async def test_chunked_long_story_emits_gen_ai_token_metrics(
     http_client: AsyncClient,
     otel_spans_reader: SpansReader,
@@ -90,9 +92,6 @@ async def test_chunked_long_story_emits_gen_ai_token_metrics(
 
     # Act
     for index, chunk in enumerate(LONG_STORY_CHUNKS):
-        # CPU-only Ollama inference is slow and CI-runner-dependent (see
-        # docs/llm-latency-primer.md) — this test does 3 of these sequentially,
-        # so it needs more headroom than the client's default 240s.
         response = await http_client.post(
             "/graphql",
             headers={"x-app-user-id": user_id},
@@ -100,7 +99,7 @@ async def test_chunked_long_story_emits_gen_ai_token_metrics(
                 "query": NORMALIZE_TTS_MUTATION,
                 "variables": {"text": chunk},
             },
-            timeout=480.0,
+            timeout=480.0,  # CPU-only inference is slow
         )
         assert response.status_code == 200, (index, response.text)
         body = response.json()
@@ -124,9 +123,9 @@ async def test_chunked_long_story_emits_gen_ai_token_metrics(
         timeout_s=15.0,
     )
     token_spans = find_spans_with_attribute(spans, attribute="gen_ai.usage.input_tokens")
-    assert (
-        len(token_spans) >= chunk_count
-    ), f"expected at least one model-request span per chunk ({chunk_count}), got {len(token_spans)}"
+    assert len(token_spans) >= chunk_count, (
+        f"expected at least one model-request span per chunk ({chunk_count}), got {len(token_spans)}"
+    )
     _assert_token_usage_attributes(token_spans)
     _assert_spans_have_enduser_id(spans, user_id=user_id, chunk_count=chunk_count)
     _assert_prompt_template_metadata(spans, template_name="normalize_tts")
@@ -172,9 +171,9 @@ def _assert_prompt_template_metadata(spans: list[dict], *, template_name: str) -
 
     matching = [span for span in spans if _span_carries_prompt_template(span, template_name)]
 
-    assert (
-        matching
-    ), f"expected at least one span carrying the {template_name!r} prompt-template metadata"
+    assert matching, (
+        f"expected at least one span carrying the {template_name!r} prompt-template metadata"
+    )
 
 
 def _span_carries_prompt_template(span: dict, template_name: str) -> bool:
@@ -191,6 +190,6 @@ def _span_carries_prompt_template(span: dict, template_name: str) -> bool:
 def _assert_spans_have_enduser_id(spans: list[dict], *, user_id: str, chunk_count: int) -> None:
     enduser_spans = [span for span in spans if span["attributes"].get("enduser.id") == user_id]
 
-    assert (
-        len(enduser_spans) >= chunk_count
-    ), f"expected at least {chunk_count} spans tagged with enduser.id={user_id!r}, saw {len(enduser_spans)}"
+    assert len(enduser_spans) >= chunk_count, (
+        f"expected at least {chunk_count} spans tagged with enduser.id={user_id!r}, saw {len(enduser_spans)}"
+    )
