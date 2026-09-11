@@ -98,7 +98,9 @@ async def generate_audio(
                 'presigned URL. Must respond with JSON shaped `{"url": "<presigned-url>"}` — '
                 "Beatrice then PUTs the audio bytes directly to that URL with "
                 "`Content-Type: audio/mpeg`. Host must be in the "
-                "GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list."
+                "GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list. The callback receives a "
+                'JSON body `{"clientContextId": "<value>"}` when the caller supplied '
+                "`clientContextId`, and no body otherwise."
             ),
         ),
     ],
@@ -109,15 +111,18 @@ async def generate_audio(
             description=(
                 "Callback Beatrice POSTs progress/state updates to, exactly one call per "
                 "status, best-effort (a failed delivery is logged and never fails the job "
-                'or blocks retries). Every body includes `"jobId": "<jobId>"`. Bodies, in '
-                'order: `{"status": "queued", "jobId": "<jobId>"}`; '
-                '`{"status": "generating", "jobId": "<jobId>"}`; '
-                '`{"status": "uploading", "jobId": "<jobId>"}`; then either '
-                '`{"status": "completed", "fileSizeBytes": <int>, "jobId": "<jobId>"}` or '
-                '`{"status": "failed", "failedAt": "<iso8601>", "error": '
-                '{"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "<str>"}, '
-                '"jobId": "<jobId>"}`. '
-                "No response body is expected. Host must be in the "
+                'or blocks retries). Every body includes `"jobId": "<jobId>"`, plus '
+                '`"clientContextId": "<value>"` when the caller supplied `clientContextId`. '
+                'Bodies, in order: `{"status": "queued", "jobId": "<jobId>", '
+                '"clientContextId": "<value>"}`; '
+                '`{"status": "generating", "jobId": "<jobId>", "clientContextId": "<value>"}`; '
+                '`{"status": "uploading", "jobId": "<jobId>", "clientContextId": "<value>"}`; '
+                'then either `{"status": "completed", "fileSizeBytes": <int>, "jobId": '
+                '"<jobId>", "clientContextId": "<value>"}` or `{"status": "failed", '
+                '"failedAt": "<iso8601>", "error": {"code": "TTS_PROVIDER_ERROR" | '
+                '"UPLOAD_ERROR", "message": "<str>"}, "jobId": "<jobId>", "clientContextId": '
+                '"<value>"}`. `clientContextId` is omitted entirely when the caller didn\'t '
+                "supply one. No response body is expected. Host must be in the "
                 "GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list."
             ),
         ),
@@ -134,6 +139,18 @@ async def generate_audio(
                 "model to interpret per this guide. Rejected when the configured "
                 "provider isn't Qwen3-TTS. Qwen3-TTS (and therefore instruct) is "
                 "English-only for now."
+            ),
+        ),
+    ] = None,
+    client_context_id: Annotated[
+        str | None,
+        strawberry.argument(
+            description=(
+                "Opaque caller-supplied value. Beatrice never interprets or validates it — "
+                "it's stored alongside the job and echoed back verbatim, as "
+                "`clientContextId`, in every `statusCallbackUrl` body and in the "
+                "`genUploadUrl` POST. Useful for correlating callbacks that may arrive "
+                "before the mutation response does."
             ),
         ),
     ] = None,
@@ -166,13 +183,20 @@ async def generate_audio(
     }
     if instruct is not None:
         message_body["instruct"] = instruct
+    if client_context_id is not None:
+        message_body["clientContextId"] = client_context_id
 
     await publish_generate_audio_job(
         settings=get_settings().rabbitmq,
         body=message_body,
         headers=message_headers,
     )
-    await _report_queued(job_id, status_callback_url, authorization=authorization)
+    await _report_queued(
+        job_id,
+        status_callback_url,
+        client_context_id=client_context_id,
+        authorization=authorization,
+    )
 
     info.context["response"].status_code = 202
 
@@ -180,7 +204,11 @@ async def generate_audio(
 
 
 async def _report_queued(
-    job_id: str, status_callback_url: str, *, authorization: str | None
+    job_id: str,
+    status_callback_url: str,
+    *,
+    client_context_id: str | None,
+    authorization: str | None,
 ) -> None:
     """
     Best-effort — the job is already durably published by the time this runs, so a flaky
@@ -188,12 +216,15 @@ async def _report_queued(
     """
 
     headers = {"authorization": authorization} if authorization is not None else {}
+    body: dict[str, str] = {"status": "queued", "jobId": job_id}
+    if client_context_id is not None:
+        body["clientContextId"] = client_context_id
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(
                 status_callback_url,
-                json={"status": "queued", "jobId": job_id},
+                json=body,
                 headers=headers,
             )
             response.raise_for_status()

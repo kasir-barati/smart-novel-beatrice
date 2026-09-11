@@ -58,12 +58,12 @@ type Mutation {
     voice: String!
 
     """
-    Callback Beatrice POSTs to exactly once, when it needs a presigned upload URL for the synthesized audio. Sent with header `Idempotency-Key: <jobId>`, so a retried call is recognized as the same request rather than minting a second presigned URL. Must respond with JSON shaped `{"url": "<presigned-url>"}` — Beatrice then PUTs the audio bytes directly to that URL with `Content-Type: audio/mpeg`. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list.
+    Callback Beatrice POSTs to exactly once, when it needs a presigned upload URL for the synthesized audio. Sent with header `Idempotency-Key: <jobId>`, so a retried call is recognized as the same request rather than minting a second presigned URL. Must respond with JSON shaped `{"url": "<presigned-url>"}` — Beatrice then PUTs the audio bytes directly to that URL with `Content-Type: audio/mpeg`. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list. The callback receives a JSON body `{"clientContextId": "<value>"}` when the caller supplied `clientContextId`, and no body otherwise.
     """
     genUploadUrl: String!
 
     """
-    Callback Beatrice POSTs progress/state updates to, exactly one call per status, best-effort (a failed delivery is logged and never fails the job or blocks retries). Every body includes `"jobId": "<jobId>"`. Bodies, in order: `{"status": "queued", "jobId": "<jobId>"}`; `{"status": "generating", "jobId": "<jobId>"}`; `{"status": "uploading", "jobId": "<jobId>"}`; then either `{"status": "completed", "fileSizeBytes": <int>, "jobId": "<jobId>"}` or `{"status": "failed", "failedAt": "<iso8601>", "error": {"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "<str>"}, "jobId": "<jobId>"}`. No response body is expected. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list.
+    Callback Beatrice POSTs progress/state updates to, exactly one call per status, best-effort (a failed delivery is logged and never fails the job or blocks retries). Every body includes `"jobId": "<jobId>"`, plus `"clientContextId": "<value>"` when the caller supplied `clientContextId`. Bodies, in order: `{"status": "queued", "jobId": "<jobId>", "clientContextId": "<value>"}`; `{"status": "generating", "jobId": "<jobId>", "clientContextId": "<value>"}`; `{"status": "uploading", "jobId": "<jobId>", "clientContextId": "<value>"}`; then either `{"status": "completed", "fileSizeBytes": <int>, "jobId": "<jobId>", "clientContextId": "<value>"}` or `{"status": "failed", "failedAt": "<iso8601>", "error": {"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "<str>"}, "jobId": "<jobId>", "clientContextId": "<value>"}`. `clientContextId` is omitted entirely when the caller didn't supply one. No response body is expected. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list.
     """
     statusCallbackUrl: String!
 
@@ -71,6 +71,11 @@ type Mutation {
     Qwen3-TTS-only. A style guide applied to the whole call, e.g. 'A male narrator with a clear voice. Treat bracketed words like [dramatic] as emotion cues, not literal text.' text is never parsed or stripped by Beatrice — any inline tags in it are passed through verbatim for the model to interpret per this guide. Rejected when the configured provider isn't Qwen3-TTS. Qwen3-TTS (and therefore instruct) is English-only for now.
     """
     instruct: String = null
+
+    """
+    Opaque caller-supplied value. Beatrice never interprets or validates it — it's stored alongside the job and echoed back verbatim, as `clientContextId`, in every `statusCallbackUrl` body and in the `genUploadUrl` POST. Useful for correlating callbacks that may arrive before the mutation response does.
+    """
+    clientContextId: String = null
   ): GenerateAudioResult!
 }
 

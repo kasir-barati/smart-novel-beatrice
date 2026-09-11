@@ -52,6 +52,11 @@ class GenerateAudioJob(BaseModel):
         default=None,
         description="Qwen3-TTS style guide, absent on messages published before this field existed.",
     )
+    client_context_id: str | None = Field(
+        default=None,
+        alias="clientContextId",
+        description="Opaque caller-supplied value, echoed verbatim on every callback.",
+    )
 
 
 class SynthesizeErrorCode(StrEnum):

@@ -28,6 +28,7 @@ GENERATE_AUDIO_MUTATION = """
         $genUploadUrl: String!
         $statusCallbackUrl: String!
         $instruct: String
+        $clientContextId: String
     ) {
         generateAudio(
             text: $text
@@ -35,6 +36,7 @@ GENERATE_AUDIO_MUTATION = """
             genUploadUrl: $genUploadUrl
             statusCallbackUrl: $statusCallbackUrl
             instruct: $instruct
+            clientContextId: $clientContextId
         ) {
             jobId
         }
@@ -158,6 +160,49 @@ async def test_generate_audio_publishes_instruct_when_given(
 
     assert payload["jobId"] == job_id
     assert payload["instruct"] == "speak in a whisper"
+
+
+async def test_generate_audio_publishes_client_context_id_when_given(
+    http_client: AsyncClient,
+    wiremock: WireMockClient,
+    rabbitmq_host_url: str,
+) -> None:
+    wiremock.stub("POST", "/status-callback", status=200, json_body={"ok": True})
+
+    response = await http_client.post(
+        "/graphql",
+        json={
+            "query": GENERATE_AUDIO_MUTATION,
+            "variables": _variables(clientContextId="chapter-42"),
+        },
+    )
+
+    assert response.status_code == 202, response.text
+    job_id = response.json()["data"]["generateAudio"]["jobId"]
+
+    connection = await aio_pika.connect_robust(rabbitmq_host_url)
+    try:
+        channel = await connection.channel()
+        queue = await channel.declare_queue(
+            "beatrice.generate_audio", durable=True, arguments={"x-queue-type": "quorum"}
+        )
+        incoming = await queue.get(timeout=10)
+        assert incoming is not None
+        payload = json.loads(incoming.body)
+        await incoming.ack()
+    finally:
+        await connection.close()
+
+    assert payload["jobId"] == job_id
+    assert payload["clientContextId"] == "chapter-42"
+
+    queued_requests = wiremock.requests_for("/status-callback")
+    assert len(queued_requests) == 1
+    assert json.loads(queued_requests[0]["body"]) == {
+        "status": "queued",
+        "jobId": job_id,
+        "clientContextId": "chapter-42",
+    }
 
 
 async def test_generate_audio_rejects_oversized_text(
