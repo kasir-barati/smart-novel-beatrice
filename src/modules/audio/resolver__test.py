@@ -221,6 +221,7 @@ async def test_generate_audio_rejects_instruct_when_provider_is_not_qwen(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("TTS__DEFAULT_PROVIDER", "gemini-tts")
+    monkeypatch.setenv("TTS__GEMINI__API_KEY", "test-key")
     monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
 
     with pytest.raises(InstructNotSupportedError):

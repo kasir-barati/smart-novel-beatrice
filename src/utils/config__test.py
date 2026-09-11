@@ -32,8 +32,7 @@ def _set_required_no_default_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("LLM__MODEL", "qwen2.5:3b")
     monkeypatch.setenv("OTEL__ENABLED", "false")
     monkeypatch.setenv("OTEL__EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
-    monkeypatch.setenv("TTS__QWEN__API_KEY", "")
-    monkeypatch.setenv("TTS__GEMINI__API_KEY", "")
+    monkeypatch.setenv("TTS__QWEN__API_KEY", "test-key")  # default provider is qwen3-tts
 
 
 def test_defaults_when_environment_is_empty(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -73,7 +72,6 @@ def test_defaults_when_environment_is_empty(monkeypatch: pytest.MonkeyPatch, tmp
         "OTEL__ENABLED",
         "OTEL__EXPORTER_OTLP_ENDPOINT",
         "TTS__QWEN__API_KEY",
-        "TTS__GEMINI__API_KEY",
     ],
 )
 def test_settings_has_no_default_for_production_risky_fields(
@@ -87,6 +85,49 @@ def test_settings_has_no_default_for_production_risky_fields(
 
     with pytest.raises(pydantic.ValidationError):
         Settings()
+
+
+def test_settings_only_requires_api_key_for_the_default_tts_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Gemini's key is irrelevant while qwen3-tts (the default) is the active provider."""
+
+    monkeypatch.chdir(tmp_path)
+    _set_required_no_default_env(monkeypatch)
+    monkeypatch.delenv("TTS__GEMINI__API_KEY", raising=False)
+
+    result = Settings()
+
+    assert result.tts.qwen.api_key == "test-key"
+    assert result.tts.gemini.api_key is None
+
+
+def test_settings_requires_gemini_api_key_when_it_is_the_default_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _set_required_no_default_env(monkeypatch)
+    monkeypatch.setenv("TTS__DEFAULT_PROVIDER", "gemini-tts")
+    monkeypatch.delenv("TTS__GEMINI__API_KEY", raising=False)
+    monkeypatch.delenv("TTS__QWEN__API_KEY", raising=False)
+
+    with pytest.raises(pydantic.ValidationError):
+        Settings()
+
+
+def test_settings_does_not_require_qwen_api_key_when_gemini_is_the_default_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    _set_required_no_default_env(monkeypatch)
+    monkeypatch.setenv("TTS__DEFAULT_PROVIDER", "gemini-tts")
+    monkeypatch.setenv("TTS__GEMINI__API_KEY", "gemini-key")
+    monkeypatch.delenv("TTS__QWEN__API_KEY", raising=False)
+
+    result = Settings()
+
+    assert result.tts.gemini.api_key == "gemini-key"
+    assert result.tts.qwen.api_key is None
 
 
 def test_environment_overrides_defaults(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:

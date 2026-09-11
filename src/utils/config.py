@@ -11,7 +11,7 @@ from enum import StrEnum
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -74,7 +74,7 @@ class GeminiTtsSettings(BaseSettings):
     """Google Cloud Text-to-Speech."""
 
     base_url: str = Field(default="https://texttospeech.googleapis.com")
-    api_key: str = Field(description="Sent as the X-Goog-Api-Key header.")
+    api_key: str | None = Field(default=None, description="Sent as the X-Goog-Api-Key header.")
     voices_path: str = Field(default="/v1/voices")
     timeout_ms: int = Field(default=30_000, ge=1_000)
 
@@ -89,7 +89,7 @@ class QwenTtsSettings(BaseSettings):
     """
 
     base_url: str = Field(default="https://dashscope-intl.aliyuncs.com")
-    api_key: str = Field()
+    api_key: str | None = Field(default=None)
     model: str = Field(default="qwen3-tts-instruct-flash")
     voices: str = Field(
         default="",
@@ -123,6 +123,20 @@ class Tts(BaseSettings):
     gemini: GeminiTtsSettings = Field(
         default_factory=GeminiTtsSettings  # pyright: ignore[reportArgumentType]
     )
+
+    @model_validator(mode="after")
+    def _require_default_provider_api_key(self) -> Tts:
+        """Only the selected provider needs an API key"""
+
+        if self.default_provider is TtsProviderName.QWEN3_TTS and not self.qwen.api_key:
+            raise ValueError("TTS__QWEN__API_KEY is required when TTS__DEFAULT_PROVIDER=qwen3-tts")
+
+        if self.default_provider is TtsProviderName.GEMINI_TTS and not self.gemini.api_key:
+            raise ValueError(
+                "TTS__GEMINI__API_KEY is required when TTS__DEFAULT_PROVIDER=gemini-tts"
+            )
+
+        return self
 
 
 class CallbackSettings(BaseSettings):
