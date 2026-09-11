@@ -153,7 +153,11 @@ async def synthesize_job(job: GenerateAudioJob, *, authorization: str | None) ->
 
 
 async def _fetch_presigned_upload_url(
-    gen_upload_url: str, *, job_id: str, authorization: str | None
+    gen_upload_url: str,
+    *,
+    job_id: str,
+    authorization: str | None,
+    client_context_id: str | None,
 ) -> str:
     """
     POST to `genUploadUrl` for a fresh presigned URL, keyed by `Idempotency-Key` so a
@@ -166,9 +170,10 @@ async def _fetch_presigned_upload_url(
     headers = {"Idempotency-Key": job_id}
     if authorization is not None:
         headers["authorization"] = authorization
+    body = {"clientContextId": client_context_id} if client_context_id is not None else None
 
     async with httpx.AsyncClient(timeout=10.0) as client:
-        response = await client.post(gen_upload_url, headers=headers)
+        response = await client.post(gen_upload_url, json=body, headers=headers)
         response.raise_for_status()
 
     presigned_url = response.json()["url"]
@@ -204,7 +209,10 @@ async def upload_job(
     )
 
     presigned_url = await _fetch_presigned_upload_url(
-        job.gen_upload_url, job_id=job.job_id, authorization=authorization
+        job.gen_upload_url,
+        job_id=job.job_id,
+        authorization=authorization,
+        client_context_id=job.client_context_id,
     )
     audio_bytes = audio.file_path.read_bytes()
 

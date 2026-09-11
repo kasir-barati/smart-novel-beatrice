@@ -382,10 +382,33 @@ async def test_upload_job_fetches_presigned_url_and_puts_the_file(
     post_call = next(c for c in calls if c["method"] == "POST")
     assert post_call["url"] == "https://client.example.com/upload"
     assert post_call["headers"] == {"Idempotency-Key": "job-1", "authorization": "Bearer secret"}
+    assert post_call["json"] == {"clientContextId": "chapter-42"}
     put_call = next(c for c in calls if c["method"] == "PUT")
     assert put_call["url"] == "https://storage.example.com/presigned"
     assert put_call["content"] == b"abcde"
     assert put_call["headers"] == {"Content-Type": "audio/mpeg"}
+
+
+async def test_upload_job_sends_no_body_to_gen_upload_url_when_client_context_id_absent(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    file_path = tmp_path / "out.mp3"
+    file_path.write_bytes(b"abcde")
+    audio = SynthesizedAudio(file_path=file_path)
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        worker_module.httpx,
+        "AsyncClient",
+        lambda **_: _FakeHttpxClient(
+            calls, json_body={"url": "https://storage.example.com/presigned"}
+        ),
+    )
+    monkeypatch.setattr(worker_module, "report_progress", _async_noop)
+
+    await upload_job(_job(), audio, authorization="Bearer secret")
+
+    post_call = next(c for c in calls if c["method"] == "POST")
+    assert post_call["json"] is None
 
 
 async def test_upload_job_rejects_a_gen_upload_url_not_on_the_allow_list(

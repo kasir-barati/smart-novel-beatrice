@@ -293,6 +293,9 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
     assert all(u["jobId"] == job_id for u in status_updates)
     assert all(u["clientContextId"] == "chapter-42" for u in status_updates)
 
+    upload_requests = wiremock.requests_for("/upload")
+    assert json.loads(upload_requests[0]["body"]) == {"clientContextId": "chapter-42"}
+
 
 async def test_generate_audio_pipeline_forwards_instruct_to_the_provider(
     http_client: AsyncClient,
