@@ -90,6 +90,7 @@ async def test_report_progress_posts_status(monkeypatch: pytest.MonkeyPatch) -> 
         status="generating",
         authorization="Bearer secret",
         job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+        client_context_id=None,
     )
 
     assert calls == [
@@ -105,6 +106,25 @@ async def test_report_progress_posts_status(monkeypatch: pytest.MonkeyPatch) -> 
     ]
 
 
+async def test_report_progress_includes_client_context_id_when_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
+    )
+
+    await report_progress(
+        "http://client.example.com/status",
+        status="generating",
+        authorization=None,
+        job_id="job-1",
+        client_context_id="chapter-42",
+    )
+
+    assert calls[0]["json"]["clientContextId"] == "chapter-42"
+
+
 async def test_report_progress_does_not_raise_on_callback_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -117,6 +137,7 @@ async def test_report_progress_does_not_raise_on_callback_failure(
         status="generating",
         authorization=None,
         job_id="job-1",
+        client_context_id=None,
     )
 
 
@@ -138,6 +159,7 @@ async def test_report_progress_refuses_a_host_not_on_the_allow_list(
         status="generating",
         authorization=None,
         job_id="job-1",
+        client_context_id=None,
     )
 
     assert calls == []
@@ -154,6 +176,7 @@ async def test_report_completed_posts_status_and_file_size(monkeypatch: pytest.M
         file_size_bytes=4096,
         authorization=None,
         job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+        client_context_id=None,
     )
 
     assert calls[0]["json"] == {
@@ -161,6 +184,25 @@ async def test_report_completed_posts_status_and_file_size(monkeypatch: pytest.M
         "fileSizeBytes": 4096,
         "jobId": "2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
     }
+
+
+async def test_report_completed_includes_client_context_id_when_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
+    )
+
+    await report_completed(
+        "http://client.example.com/status",
+        file_size_bytes=4096,
+        authorization=None,
+        job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+        client_context_id="chapter-42",
+    )
+
+    assert calls[0]["json"]["clientContextId"] == "chapter-42"
 
 
 async def test_report_failed_posts_status_error_code_and_message(
@@ -177,6 +219,7 @@ async def test_report_failed_posts_status_error_code_and_message(
         message="boom",
         authorization=None,
         job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+        client_context_id=None,
     )
 
     body = calls[0]["json"]
@@ -184,6 +227,27 @@ async def test_report_failed_posts_status_error_code_and_message(
     assert "failedAt" in body
     assert body["error"] == {"code": "UPLOAD_ERROR", "message": "boom"}
     assert body["jobId"] == "2bce49d6-6592-4ed3-b421-f913b9ecc3bd"
+    assert "clientContextId" not in body
+
+
+async def test_report_failed_includes_client_context_id_when_given(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(
+        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
+    )
+
+    await report_failed(
+        "http://client.example.com/status",
+        code=SynthesizeErrorCode.UPLOAD_ERROR,
+        message="boom",
+        authorization=None,
+        job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+        client_context_id="chapter-42",
+    )
+
+    assert calls[0]["json"]["clientContextId"] == "chapter-42"
 
 
 class _FakeProvider:
@@ -225,12 +289,16 @@ async def test_synthesize_job_reports_progress_then_calls_the_provider(
     monkeypatch.setattr(worker_module, "build_provider", lambda name, settings: fake_provider)
     progress_calls: list[dict[str, Any]] = []
 
-    async def _fake_report_progress(url: str, *, status: str, **kwargs: Any) -> None:
-        progress_calls.append({"url": url, "status": status})
+    async def _fake_report_progress(
+        url: str, *, status: str, client_context_id: str | None, **kwargs: Any
+    ) -> None:
+        progress_calls.append(
+            {"url": url, "status": status, "client_context_id": client_context_id}
+        )
 
     monkeypatch.setattr(worker_module, "report_progress", _fake_report_progress)
 
-    job = _job()
+    job = _job(clientContextId="chapter-42")
     returned = await synthesize_job(job, authorization=None)
 
     assert returned is result
@@ -238,7 +306,13 @@ async def test_synthesize_job_reports_progress_then_calls_the_provider(
         {"text": "hello", "voice": "qwen-voice-a", "instruct": None}
     ]
     assert fake_provider.closed is True
-    assert progress_calls == [{"url": job.status_callback_url, "status": "generating"}]
+    assert progress_calls == [
+        {
+            "url": job.status_callback_url,
+            "status": "generating",
+            "client_context_id": "chapter-42",
+        }
+    ]
 
 
 async def test_synthesize_job_forwards_instruct_to_the_provider(
@@ -292,15 +366,19 @@ async def test_upload_job_fetches_presigned_url_and_puts_the_file(
     )
     progress_calls: list[dict[str, Any]] = []
 
-    async def _fake_report_progress(url: str, *, status: str, **kwargs: Any) -> None:
-        progress_calls.append({"status": status})
+    async def _fake_report_progress(
+        url: str, *, status: str, client_context_id: str | None, **kwargs: Any
+    ) -> None:
+        progress_calls.append({"status": status, "client_context_id": client_context_id})
 
     monkeypatch.setattr(worker_module, "report_progress", _fake_report_progress)
 
-    file_size = await upload_job(_job(), audio, authorization="Bearer secret")
+    file_size = await upload_job(
+        _job(clientContextId="chapter-42"), audio, authorization="Bearer secret"
+    )
 
     assert file_size == 5
-    assert progress_calls == [{"status": "uploading"}]
+    assert progress_calls == [{"status": "uploading", "client_context_id": "chapter-42"}]
     post_call = next(c for c in calls if c["method"] == "POST")
     assert post_call["url"] == "https://client.example.com/upload"
     assert post_call["headers"] == {"Idempotency-Key": "job-1", "authorization": "Bearer secret"}

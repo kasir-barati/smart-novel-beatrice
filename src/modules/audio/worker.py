@@ -36,6 +36,7 @@ async def _post_status_update(
     *,
     authorization: str | None,
     job_id: str,
+    client_context_id: str | None,
 ) -> None:
     """
     Best-effort — a flaky callback endpoint shouldn't fail job processing.
@@ -56,6 +57,8 @@ async def _post_status_update(
         return
 
     body = {**body, "jobId": job_id}
+    if client_context_id is not None:
+        body["clientContextId"] = client_context_id
     headers = {"authorization": authorization} if authorization is not None else {}
 
     try:
@@ -81,12 +84,14 @@ async def report_progress(
     status: str,
     authorization: str | None,
     job_id: str,
+    client_context_id: str | None,
 ) -> None:
     await _post_status_update(
         status_callback_url,
         {"status": status},
         authorization=authorization,
         job_id=job_id,
+        client_context_id=client_context_id,
     )
 
 
@@ -96,12 +101,14 @@ async def report_completed(
     file_size_bytes: int,
     authorization: str | None,
     job_id: str,
+    client_context_id: str | None,
 ) -> None:
     await _post_status_update(
         status_callback_url,
         {"status": "completed", "fileSizeBytes": file_size_bytes},
         authorization=authorization,
         job_id=job_id,
+        client_context_id=client_context_id,
     )
 
 
@@ -112,6 +119,7 @@ async def report_failed(
     message: str,
     authorization: str | None,
     job_id: str,
+    client_context_id: str | None,
 ) -> None:
     await _post_status_update(
         status_callback_url,
@@ -122,6 +130,7 @@ async def report_failed(
         },
         authorization=authorization,
         job_id=job_id,
+        client_context_id=client_context_id,
     )
 
 
@@ -136,6 +145,7 @@ async def synthesize_job(job: GenerateAudioJob, *, authorization: str | None) ->
             status="generating",
             authorization=authorization,
             job_id=job.job_id,
+            client_context_id=job.client_context_id,
         )
         return await provider.synthesize(text=job.text, voice=job.voice, instruct=job.instruct)
     finally:
@@ -190,6 +200,7 @@ async def upload_job(
         status="uploading",
         authorization=authorization,
         job_id=job.job_id,
+        client_context_id=job.client_context_id,
     )
 
     presigned_url = await _fetch_presigned_upload_url(
@@ -343,6 +354,7 @@ async def _handle_job_failure(
         message=str(exc),
         authorization=authorization,
         job_id=job.job_id,
+        client_context_id=job.client_context_id,
     )
 
     rabbitmq_settings = settings.rabbitmq
@@ -463,6 +475,7 @@ async def handle_message(
             file_size_bytes=file_size_bytes,
             authorization=authorization,
             job_id=job.job_id,
+            client_context_id=job.client_context_id,
         )
         _logger.info(
             "generateAudio job completed",

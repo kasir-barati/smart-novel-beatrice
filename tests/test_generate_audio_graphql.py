@@ -265,7 +265,11 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
     wiremock.stub("POST", "/status-callback", status=200, json_body={"ok": True})
 
     response = await http_client.post(
-        "/graphql", json={"query": GENERATE_AUDIO_MUTATION, "variables": _variables()}
+        "/graphql",
+        json={
+            "query": GENERATE_AUDIO_MUTATION,
+            "variables": _variables(clientContextId="chapter-42"),
+        },
     )
 
     assert response.status_code == 202, response.text
@@ -278,10 +282,16 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
 
     status_updates = [json.loads(r["body"]) for r in wiremock.requests_for("/status-callback")]
     completed = next(u for u in status_updates if u.get("status") == "completed")
-    assert completed == {"status": "completed", "fileSizeBytes": len(audio_bytes), "jobId": job_id}
+    assert completed == {
+        "status": "completed",
+        "fileSizeBytes": len(audio_bytes),
+        "jobId": job_id,
+        "clientContextId": "chapter-42",
+    }
     statuses_seen = [u["status"] for u in status_updates]
     assert statuses_seen == ["queued", "generating", "uploading", "completed"]
     assert all(u["jobId"] == job_id for u in status_updates)
+    assert all(u["clientContextId"] == "chapter-42" for u in status_updates)
 
 
 async def test_generate_audio_pipeline_forwards_instruct_to_the_provider(
