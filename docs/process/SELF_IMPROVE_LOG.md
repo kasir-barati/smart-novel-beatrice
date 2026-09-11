@@ -32,3 +32,16 @@ Unit and integration tests passed on the first run; graphql-api-tester correctly
 skipped per the step's Test notes (no GraphQL surface changed). The cold
 `docker compose up --build -d` timeout observed in step 1 repeated here, so it's now
 promoted to `PROCESS.md` step 4 instead of staying a single-occurrence log note.
+
+## 2026-09-11 — clientContextId (caller-correlation-id), step 3
+
+Added the `clientContextId` JSON body to `_fetch_presigned_upload_url`'s POST to
+`genUploadUrl` (sent only when the job carries one; `httpx`'s `json=None` cleanly
+reproduces today's no-body behavior, no branching needed on the request itself).
+Unit and integration tests passed first run; graphql-api-tester correctly skipped
+per the step's Test notes. No new process gaps — the `PROCESS.md` step 4 addendum
+from step 2 already covered the only recurring friction (cold `docker compose
+up --build`). Noted but left untouched: an unrelated working-tree change to
+`.claude/skills/build-step/SKILL.md` (description/wording only, not made by this
+run) was present before this step started and out of this step's scope, so it was
+left unstaged rather than folded into the step 3 commit.
