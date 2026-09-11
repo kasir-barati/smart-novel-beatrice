@@ -63,12 +63,12 @@ type Mutation {
     genUploadUrl: String!
 
     """
-    Callback Beatrice POSTs progress/state updates to, one call per event, best-effort (a failed delivery is logged and never fails the job or blocks retries). Every body includes `"jobId": "<jobId>"`. Bodies, in order: `{"status": "queued", "jobId": "<jobId>"}`; `{"status": "generating" | "uploading", "percent": <int>, "jobId": "<jobId>"}`; then either `{"status": "completed", "fileSizeBytes": <int>, "jobId": "<jobId>"}` or `{"status": "failed", "failedAt": "<iso8601>", "error": {"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "<str>"}, "jobId": "<jobId>"}`. No response body is expected. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list.
+    Callback Beatrice POSTs progress/state updates to, exactly one call per status, best-effort (a failed delivery is logged and never fails the job or blocks retries). Every body includes `"jobId": "<jobId>"`. Bodies, in order: `{"status": "queued", "jobId": "<jobId>"}`; `{"status": "generating", "jobId": "<jobId>"}`; `{"status": "uploading", "jobId": "<jobId>"}`; then either `{"status": "completed", "fileSizeBytes": <int>, "jobId": "<jobId>"}` or `{"status": "failed", "failedAt": "<iso8601>", "error": {"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "<str>"}, "jobId": "<jobId>"}`. No response body is expected. Host must be in the GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS allow-list.
     """
     statusCallbackUrl: String!
 
     """
-    Qwen3-TTS-only. A style guide applied to the whole call, e.g. 'A male narrator with a clear voice. Treat bracketed words like [dramatic] as emotion cues, not literal text.' text is never parsed or stripped by Beatrice — any inline tags in it are passed through verbatim for the model to interpret per this guide. Rejected when the configured provider isn't Qwen3-TTS.
+    Qwen3-TTS-only. A style guide applied to the whole call, e.g. 'A male narrator with a clear voice. Treat bracketed words like [dramatic] as emotion cues, not literal text.' text is never parsed or stripped by Beatrice — any inline tags in it are passed through verbatim for the model to interpret per this guide. Rejected when the configured provider isn't Qwen3-TTS. Qwen3-TTS (and therefore instruct) is English-only for now.
     """
     instruct: String = null
   ): GenerateAudioResult!

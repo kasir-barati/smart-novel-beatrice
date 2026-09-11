@@ -235,7 +235,7 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
     completed = next(u for u in status_updates if u.get("status") == "completed")
     assert completed == {"status": "completed", "fileSizeBytes": len(audio_bytes), "jobId": job_id}
     statuses_seen = [u["status"] for u in status_updates]
-    assert statuses_seen == ["queued", "generating", "generating", "uploading", "completed"]
+    assert statuses_seen == ["queued", "generating", "uploading", "completed"]
     assert all(u["jobId"] == job_id for u in status_updates)
 
 

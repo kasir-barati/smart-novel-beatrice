@@ -27,16 +27,6 @@ from src.utils import RabbitMq, Settings, get_settings
 
 _logger = logging.getLogger(__name__)
 
-GENERATING_STARTED_PERCENT = 0
-GENERATING_CALL_PERCENT = 12
-"""
-Synthesis is a single blocking HTTP call with no real incremental progress today
-(Qwen3-TTS's HTTP shim exposes none) — this marks "the provider call has started",
-not a measured value.
-"""
-
-UPLOADING_STARTED_PERCENT = 0
-
 _UPLOAD_CONTENT_TYPE = "audio/mpeg"
 
 
@@ -89,13 +79,12 @@ async def report_progress(
     status_callback_url: str,
     *,
     status: str,
-    percent: int,
     authorization: str | None,
     job_id: str,
 ) -> None:
     await _post_status_update(
         status_callback_url,
-        {"status": status, "percent": percent},
+        {"status": status},
         authorization=authorization,
         job_id=job_id,
     )
@@ -140,21 +129,11 @@ async def synthesize_job(job: GenerateAudioJob, *, authorization: str | None) ->
     """Report generating progress and call the configured TTS provider for audio bytes."""
 
     settings = get_settings()
-
-    await report_progress(
-        job.status_callback_url,
-        status="generating",
-        percent=GENERATING_STARTED_PERCENT,
-        authorization=authorization,
-        job_id=job.job_id,
-    )
-
     provider = build_provider(settings.tts.default_provider, settings)
     try:
         await report_progress(
             job.status_callback_url,
             status="generating",
-            percent=GENERATING_CALL_PERCENT,
             authorization=authorization,
             job_id=job.job_id,
         )
@@ -209,7 +188,6 @@ async def upload_job(
     await report_progress(
         job.status_callback_url,
         status="uploading",
-        percent=UPLOADING_STARTED_PERCENT,
         authorization=authorization,
         job_id=job.job_id,
     )

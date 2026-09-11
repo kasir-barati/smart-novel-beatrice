@@ -13,8 +13,6 @@ import pytest
 from src.modules.audio import worker as worker_module
 from src.modules.audio.types import GenerateAudioJob, SynthesizedAudio, SynthesizeErrorCode
 from src.modules.audio.worker import (
-    GENERATING_CALL_PERCENT,
-    GENERATING_STARTED_PERCENT,
     handle_message,
     report_completed,
     report_failed,
@@ -81,7 +79,7 @@ class _FakeHttpxClient:
         return _FakeHttpxResponse(200)
 
 
-async def test_report_progress_posts_status_and_percent(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_report_progress_posts_status(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[dict[str, Any]] = []
     monkeypatch.setattr(
         worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
@@ -90,7 +88,6 @@ async def test_report_progress_posts_status_and_percent(monkeypatch: pytest.Monk
     await report_progress(
         "http://client.example.com/status",
         status="generating",
-        percent=12,
         authorization="Bearer secret",
         job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
     )
@@ -101,7 +98,6 @@ async def test_report_progress_posts_status_and_percent(monkeypatch: pytest.Monk
             "url": "http://client.example.com/status",
             "json": {
                 "status": "generating",
-                "percent": 12,
                 "jobId": "2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
             },
             "headers": {"authorization": "Bearer secret"},
@@ -119,7 +115,6 @@ async def test_report_progress_does_not_raise_on_callback_failure(
     await report_progress(
         "http://client.example.com/status",
         status="generating",
-        percent=0,
         authorization=None,
         job_id="job-1",
     )
@@ -141,7 +136,6 @@ async def test_report_progress_refuses_a_host_not_on_the_allow_list(
     await report_progress(
         "https://evil.example.com/status",
         status="generating",
-        percent=0,
         authorization=None,
         job_id="job-1",
     )
@@ -231,8 +225,8 @@ async def test_synthesize_job_reports_progress_then_calls_the_provider(
     monkeypatch.setattr(worker_module, "build_provider", lambda name, settings: fake_provider)
     progress_calls: list[dict[str, Any]] = []
 
-    async def _fake_report_progress(url: str, *, status: str, percent: int, **kwargs: Any) -> None:
-        progress_calls.append({"url": url, "status": status, "percent": percent})
+    async def _fake_report_progress(url: str, *, status: str, **kwargs: Any) -> None:
+        progress_calls.append({"url": url, "status": status})
 
     monkeypatch.setattr(worker_module, "report_progress", _fake_report_progress)
 
@@ -244,11 +238,7 @@ async def test_synthesize_job_reports_progress_then_calls_the_provider(
         {"text": "hello", "voice": "qwen-voice-a", "instruct": None}
     ]
     assert fake_provider.closed is True
-    assert [c["percent"] for c in progress_calls] == [
-        GENERATING_STARTED_PERCENT,
-        GENERATING_CALL_PERCENT,
-    ]
-    assert all(c["status"] == "generating" for c in progress_calls)
+    assert progress_calls == [{"url": job.status_callback_url, "status": "generating"}]
 
 
 async def test_synthesize_job_forwards_instruct_to_the_provider(
@@ -302,15 +292,15 @@ async def test_upload_job_fetches_presigned_url_and_puts_the_file(
     )
     progress_calls: list[dict[str, Any]] = []
 
-    async def _fake_report_progress(url: str, *, status: str, percent: int, **kwargs: Any) -> None:
-        progress_calls.append({"status": status, "percent": percent})
+    async def _fake_report_progress(url: str, *, status: str, **kwargs: Any) -> None:
+        progress_calls.append({"status": status})
 
     monkeypatch.setattr(worker_module, "report_progress", _fake_report_progress)
 
     file_size = await upload_job(_job(), audio, authorization="Bearer secret")
 
     assert file_size == 5
-    assert progress_calls == [{"status": "uploading", "percent": 0}]
+    assert progress_calls == [{"status": "uploading"}]
     post_call = next(c for c in calls if c["method"] == "POST")
     assert post_call["url"] == "https://client.example.com/upload"
     assert post_call["headers"] == {"Idempotency-Key": "job-1", "authorization": "Bearer secret"}

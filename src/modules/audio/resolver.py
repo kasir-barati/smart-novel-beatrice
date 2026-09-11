@@ -107,13 +107,14 @@ async def generate_audio(
         AfterValidator(validate_callback_url),
         strawberry.argument(
             description=(
-                "Callback Beatrice POSTs progress/state updates to, one call per event, "
-                "best-effort (a failed delivery is logged and never fails the job or blocks "
-                'retries). Every body includes `"jobId": "<jobId>"`. Bodies, in order: '
-                '`{"status": "queued", "jobId": "<jobId>"}`; '
-                '`{"status": "generating" | "uploading", "percent": <int>, "jobId": "<jobId>"}`; '
-                'then either `{"status": "completed", "fileSizeBytes": <int>, "jobId": "<jobId>"}` '
-                'or `{"status": "failed", "failedAt": "<iso8601>", "error": '
+                "Callback Beatrice POSTs progress/state updates to, exactly one call per "
+                "status, best-effort (a failed delivery is logged and never fails the job "
+                'or blocks retries). Every body includes `"jobId": "<jobId>"`. Bodies, in '
+                'order: `{"status": "queued", "jobId": "<jobId>"}`; '
+                '`{"status": "generating", "jobId": "<jobId>"}`; '
+                '`{"status": "uploading", "jobId": "<jobId>"}`; then either '
+                '`{"status": "completed", "fileSizeBytes": <int>, "jobId": "<jobId>"}` or '
+                '`{"status": "failed", "failedAt": "<iso8601>", "error": '
                 '{"code": "TTS_PROVIDER_ERROR" | "UPLOAD_ERROR", "message": "<str>"}, '
                 '"jobId": "<jobId>"}`. '
                 "No response body is expected. Host must be in the "
