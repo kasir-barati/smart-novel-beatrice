@@ -10,3 +10,16 @@ unrelated drift in `docs/schema.graphql` (a stale `instruct` description) left o
 from an earlier feature that changed a description without regenerating. No other
 process gaps or test surprises this pass — the change was small and self-contained
 enough that unit and integration tests passed on the first run.
+
+## 2026-09-11 — clientContextId (caller-correlation-id), step 1
+
+Added the `clientContextId` argument, threaded it onto the queue message, and echoed
+it on the `queued` callback, mirroring the existing `instruct` pattern throughout
+(resolver, `GenerateAudioJob`, unit tests, integration test). Everything passed on the
+first run — unit, integration, and graphql-api-tester all confirmed the three ACs
+with no surprises. One single-occurrence observation, not yet promoted to `PROCESS.md`
+since it hasn't repeated: `docker compose up --build -d` took long enough to exceed
+the default 120s Bash timeout and moved to background automatically — worth budgeting
+for on a cold build, and worth polling for the specific service's health status
+(`docker compose ps` showing `healthy`) rather than just "any output," since a
+container can appear before it's actually ready to take traffic.
