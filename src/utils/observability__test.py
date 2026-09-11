@@ -44,8 +44,8 @@ def _make_settings(
 ) -> Settings:
     return Settings(
         logging=Logging(mode=logging_mode, level=log_level),
-        otel=Otel(enabled=otel_enabled),
-        llm=Llm(),
+        otel=Otel(enabled=otel_enabled, exporter_otlp_endpoint="http://otel-collector:4318"),
+        llm=Llm(base_url="http://ollama:11434/v1", api_key="ollama", model="qwen2.5:3b"),
     )
 
 
@@ -136,7 +136,9 @@ def test_tracing_installs_operation_filter_when_enabled(
         "AioPikaInstrumentor",  # same global-side-effect reasoning as HTTPXClientInstrumentor above.
         lambda: type("_FakeInstrumentor", (), {"instrument": lambda self: None})(),
     )
-    settings = Settings(otel=Otel(enabled=True))
+    settings = Settings(
+        otel=Otel(enabled=True, exporter_otlp_endpoint="http://otel-collector:4318")
+    )
 
     setup_observability(settings, version="0.0.0")  # act
 

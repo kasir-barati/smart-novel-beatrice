@@ -36,6 +36,7 @@ start:
 
 ## Runs unit tests
 test:
+	cp --update=none .env.example .env || true
 	export TESTS_START_TS=$$(date +%s)
 	@echo "== running unit tests at $$(date -u +%Y-%m-%dT%H:%M:%SZ) =="
 	uv run pytest src/ -v

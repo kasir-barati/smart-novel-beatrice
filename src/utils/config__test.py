@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 
+import pydantic
 import pytest
 
 from src.utils import (
@@ -22,6 +23,19 @@ def _clear_settings_cache() -> Iterator[None]:
     get_settings.cache_clear()
 
 
+def _set_required_no_default_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These have no code default on purpose — see config.py's RabbitMq/Llm/Otel/TTS comments."""
+
+    monkeypatch.setenv("RABBITMQ__CONNECTION_STRING", "amqp://guest:guest@rabbitmq:5672/")
+    monkeypatch.setenv("LLM__BASE_URL", "http://ollama:11434/v1")
+    monkeypatch.setenv("LLM__API_KEY", "ollama")
+    monkeypatch.setenv("LLM__MODEL", "qwen2.5:3b")
+    monkeypatch.setenv("OTEL__ENABLED", "false")
+    monkeypatch.setenv("OTEL__EXPORTER_OTLP_ENDPOINT", "http://otel-collector:4318")
+    monkeypatch.setenv("TTS__QWEN__API_KEY", "")
+    monkeypatch.setenv("TTS__GEMINI__API_KEY", "")
+
+
 def test_defaults_when_environment_is_empty(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
     monkeypatch.chdir(tmp_path)
     for key in list(os.environ):
@@ -38,6 +52,7 @@ def test_defaults_when_environment_is_empty(monkeypatch: pytest.MonkeyPatch, tmp
             "SERVICE_NAME",
         }:
             monkeypatch.delenv(key, raising=False)
+    _set_required_no_default_env(monkeypatch)
 
     result = Settings()
 
@@ -45,10 +60,33 @@ def test_defaults_when_environment_is_empty(monkeypatch: pytest.MonkeyPatch, tmp
     assert result.logging.mode is LoggingMode.JSON
     assert result.logging.level is LogLevel.INFO
     assert result.service_name == "beatrice"
-    assert result.llm.base_url == "http://ollama:11434/v1"
-    assert result.llm.model == "qwen2.5:3b"
     assert result.explain_word.model is None
-    assert result.otel.enabled is False
+
+
+@pytest.mark.parametrize(
+    "env_var",
+    [
+        "RABBITMQ__CONNECTION_STRING",
+        "LLM__BASE_URL",
+        "LLM__API_KEY",
+        "LLM__MODEL",
+        "OTEL__ENABLED",
+        "OTEL__EXPORTER_OTLP_ENDPOINT",
+        "TTS__QWEN__API_KEY",
+        "TTS__GEMINI__API_KEY",
+    ],
+)
+def test_settings_has_no_default_for_production_risky_fields(
+    monkeypatch: pytest.MonkeyPatch, tmp_path, env_var: str
+) -> None:
+    """Credentials, model choice, and compose-internal hostnames must not be silently accepted."""
+
+    monkeypatch.chdir(tmp_path)
+    _set_required_no_default_env(monkeypatch)
+    monkeypatch.delenv(env_var, raising=False)
+
+    with pytest.raises(pydantic.ValidationError):
+        Settings()
 
 
 def test_environment_overrides_defaults(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -122,7 +160,7 @@ def test_callback_settings_allowed_hosts_list_splits_and_strips_whitespace() -> 
 
 
 def test_qwen_tts_settings_voices_list_defaults_empty() -> None:
-    result = QwenTtsSettings()
+    result = QwenTtsSettings(api_key="test-key")
 
     assert result.voices_list == []
 

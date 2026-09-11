@@ -508,6 +508,7 @@ async def _handle_message(
 def _settings(*, delivery_limit: int = 3, retry_delay_seconds: float = 0.0) -> Settings:
     return Settings(
         rabbitmq=RabbitMq(
+            connection_string="amqp://guest:guest@rabbitmq:5672/",
             queue_name="beatrice.generate_audio",
             dlq_name="beatrice.generate_audio.dlq",
             delivery_limit=delivery_limit,

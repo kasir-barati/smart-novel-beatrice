@@ -39,18 +39,11 @@ class Logging(BaseSettings):
 class Llm(BaseSettings):
     """OpenAI-compatible Model backend"""
 
-    base_url: str = Field(
-        default="http://ollama:11434/v1",
-        description="OpenAI-compatible endpoint (Ollama, vLLM, OpenAI, …).",
-    )
+    base_url: str = Field(description="OpenAI-compatible endpoint (Ollama, vLLM, OpenAI, …).")
     api_key: str = Field(
-        default="ollama",
         description="Ollama accepts any non-empty string; real providers need a real key.",
     )
-    model: str = Field(
-        default="qwen2.5:3b",
-        description="Default model name for all endpoints unless overridden.",
-    )
+    model: str = Field(description="Default model name for all endpoints unless overridden.")
     timeout_ms: int = Field(
         default=30_000,
         ge=1_000,
@@ -81,7 +74,7 @@ class GeminiTtsSettings(BaseSettings):
     """Google Cloud Text-to-Speech."""
 
     base_url: str = Field(default="https://texttospeech.googleapis.com")
-    api_key: str = Field(default="", description="Sent as the X-Goog-Api-Key header.")
+    api_key: str = Field(description="Sent as the X-Goog-Api-Key header.")
     voices_path: str = Field(default="/v1/voices")
     timeout_ms: int = Field(default=30_000, ge=1_000)
 
@@ -96,7 +89,7 @@ class QwenTtsSettings(BaseSettings):
     """
 
     base_url: str = Field(default="https://dashscope-intl.aliyuncs.com")
-    api_key: str = Field(default="")
+    api_key: str = Field()
     model: str = Field(default="qwen3-tts-instruct-flash")
     voices: str = Field(
         default="",
@@ -123,8 +116,13 @@ class Tts(BaseSettings):
         default=TtsProviderName.QWEN3_TTS,
         description="Which provider backs audioVoices/generateAudio when the caller doesn't pick one.",
     )
-    qwen: QwenTtsSettings = Field(default_factory=QwenTtsSettings)
-    gemini: GeminiTtsSettings = Field(default_factory=GeminiTtsSettings)
+    # pyright can't see that pydantic-settings populates these from TTS__QWEN__*/TTS__GEMINI__*
+    # env vars before construction completes, so it flags the zero-arg default_factory call as
+    # if QwenTtsSettings()/GeminiTtsSettings() had to satisfy their required fields with nothing.
+    qwen: QwenTtsSettings = Field(default_factory=QwenTtsSettings)  # pyright: ignore[reportArgumentType]
+    gemini: GeminiTtsSettings = Field(
+        default_factory=GeminiTtsSettings  # pyright: ignore[reportArgumentType]
+    )
 
 
 class CallbackSettings(BaseSettings):
@@ -158,7 +156,7 @@ class GenerateAudio(BaseSettings):
 
 
 class RabbitMq(BaseSettings):
-    connection_string: str = Field(default="amqp://guest:guest@rabbitmq:5672/")
+    connection_string: str = Field()
     queue_name: str = Field(default="beatrice.generate_audio")
     dlq_name: str = Field(
         default="beatrice.generate_audio.dlq",
@@ -192,8 +190,8 @@ class RabbitMq(BaseSettings):
 class Otel(BaseSettings):
     """OpenTelemetry configuration"""
 
-    enabled: bool = Field(default=False)
-    exporter_otlp_endpoint: str = Field(default="http://otel-collector:4318")
+    enabled: bool = Field()
+    exporter_otlp_endpoint: str = Field()
     traces_sampler: str = Field(default="parentbased_always_on")
 
 
@@ -230,14 +228,17 @@ class Settings(BaseSettings):
 
         return data["project"]["name"]
 
+    # Same pyright limitation as Tts.qwen/gemini above: these are populated from LLM__*/
+    # RABBITMQ__*/OTEL__*/TTS__* env vars, not by literally calling Llm()/RabbitMq()/Otel()/
+    # Tts() with no arguments.
     logging: Logging = Field(default_factory=Logging)
-    llm: Llm = Field(default_factory=Llm)
+    llm: Llm = Field(default_factory=Llm)  # pyright: ignore[reportArgumentType]
     explain_word: EndpointOverride = Field(default_factory=EndpointOverride)
     normalize_tts: NormalizeTtsOverride = Field(default_factory=NormalizeTtsOverride)
-    tts: Tts = Field(default_factory=Tts)
+    tts: Tts = Field(default_factory=Tts)  # pyright: ignore[reportArgumentType]
     generate_audio: GenerateAudio = Field(default_factory=GenerateAudio)
-    rabbitmq: RabbitMq = Field(default_factory=RabbitMq)
-    otel: Otel = Field(default_factory=Otel)
+    rabbitmq: RabbitMq = Field(default_factory=RabbitMq)  # pyright: ignore[reportArgumentType]
+    otel: Otel = Field(default_factory=Otel)  # pyright: ignore[reportArgumentType]
 
 
 @lru_cache(maxsize=1)

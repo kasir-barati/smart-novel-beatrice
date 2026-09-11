@@ -79,7 +79,9 @@ async def test_publish_declares_a_durable_quorum_queue(
     _connection, declared_queues, _published = fake_connection
 
     await publish_generate_audio_job(
-        settings=RabbitMq(), body={"jobId": "abc"}, headers={"timestamp": "now"}
+        settings=RabbitMq(connection_string="amqp://guest:guest@rabbitmq:5672/"),
+        body={"jobId": "abc"},
+        headers={"timestamp": "now"},
     )
 
     assert declared_queues == [
@@ -97,7 +99,7 @@ async def test_publish_sends_body_and_headers(
     _connection, _declared_queues, published = fake_connection
 
     await publish_generate_audio_job(
-        settings=RabbitMq(),
+        settings=RabbitMq(connection_string="amqp://guest:guest@rabbitmq:5672/"),
         body={"jobId": "abc", "text": "hi"},
         headers={"timestamp": "2024-01-01T00:00:00Z", "authorization": "Bearer x"},
     )
@@ -116,6 +118,10 @@ async def test_publish_closes_the_connection(
 ) -> None:
     connection, _declared_queues, _published = fake_connection
 
-    await publish_generate_audio_job(settings=RabbitMq(), body={}, headers={})
+    await publish_generate_audio_job(
+        settings=RabbitMq(connection_string="amqp://guest:guest@rabbitmq:5672/"),
+        body={},
+        headers={},
+    )
 
     assert connection.closed is True
