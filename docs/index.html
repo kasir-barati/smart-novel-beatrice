@@ -56,6 +56,7 @@
     }
     ul.versions li:last-child { border-bottom: none; }
     .version-tag { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95rem; }
+    .schema-link { color: var(--muted); font-size: 0.85rem; margin-left: 0.75rem; }
     .badge {
       display: inline-block;
       padding: 0.1rem 0.55rem;
@@ -76,7 +77,7 @@
 
   <section>
     <h2>Latest</h2>
-    <p><a href="./latest/">Read the latest docs →</a></p>
+    <p><a href="./latest/">Read the latest docs →</a> <a class="schema-link" href="./latest/schema.graphql">schema.graphql</a></p>
   </section>
 
   <section>
@@ -102,17 +103,24 @@
         list.innerHTML = '';
         versions.forEach((v, i) => {
           const li = document.createElement('li');
+          const left = document.createElement('span');
           const link = document.createElement('a');
           link.href = `./${v}/`;
           link.className = 'version-tag';
           link.textContent = v;
-          li.appendChild(link);
+          left.appendChild(link);
           if (i === 0) {
             const badge = document.createElement('span');
             badge.className = 'badge';
             badge.textContent = 'latest';
-            li.appendChild(badge);
+            left.appendChild(badge);
           }
+          li.appendChild(left);
+          const schemaLink = document.createElement('a');
+          schemaLink.href = `./${v}/schema.graphql`;
+          schemaLink.className = 'schema-link';
+          schemaLink.textContent = 'schema';
+          li.appendChild(schemaLink);
           list.appendChild(li);
         });
       })

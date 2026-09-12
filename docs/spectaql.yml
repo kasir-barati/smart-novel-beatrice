@@ -10,6 +10,8 @@ info:
     The service is model-provider-agnostic — configure it against any OpenAI-compatible endpoint via env vars.
 
     See the [repo](https://github.com/kasir-barati/smart-novel-beatrice) for setup and self-hosting instructions.
+
+    [Download schema.graphql](./schema.graphql) — the SDL for this version.
   contact:
     name: kasir-barati
     url: https://github.com/kasir-barati/smart-novel-beatrice
