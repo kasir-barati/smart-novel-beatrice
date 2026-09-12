@@ -1,21 +1,28 @@
 #!/usr/bin/env python3
 """
-Custom lint: a diff that touches a wire-contract file (a GraphQL resolver, the
-audio worker, `progress.py`, Strawberry `types.py`, or `schema.py`) must also
-touch at least one file under `tests/` — the tier that actually asserts
-response/callback/queue body shape end-to-end.
+Custom lint: a diff that changes a *wire-shape-relevant line* in a wire-contract
+file (a GraphQL resolver, the audio worker, `progress.py`, Strawberry `types.py`,
+or `schema.py`) must also touch at least one file under `tests/` — the tier that
+actually asserts response/callback/queue body shape end-to-end.
 
-This deliberately doesn't try to tell a body-shape change apart from a pure
-refactor (an AST diff can't see "the wire contract didn't change", only that
-the file did) — it's cheaper to touch a `tests/` file, or explicitly skip this
+"Wire-shape-relevant" is a line-level heuristic (see `_WIRE_SHAPE_MARKERS`), not a
+full contract diff: it flags an added/removed line that touches a Strawberry
+field/argument/type/mutation declaration, a `description=`, an outbound
+json=/body=/POST/PUT construct, or a class/field definition. This is deliberately
+narrower than "the file changed at all" — a renamed internal variable, an added
+log line, or a comment tweak in the same file won't trip it. It's still a
+heuristic, not a structural diff: a body assembled in an unusual way (e.g. via
+`**kwargs` merge) could in theory slip through unflagged. When in doubt, prefer
+touching a `tests/` file over trusting the heuristic — or explicitly skip this
 check (`SKIP=wire-contract-coverage git commit ...` locally; pass the diff base
-as an argv in CI), than to silently ship an untested contract change. See
-REQUIREMENTS.md "Ordered TTS Status Callbacks" step 2's self-improve log entry
-for the incident this check exists to catch.
+as argv in CI) for a change you've confirmed is genuinely wire-shape-neutral.
+See REQUIREMENTS.md "Ordered TTS Status Callbacks" step 2's self-improve log
+entry for the incident this check exists to catch.
 """
 
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -31,13 +38,38 @@ CONTRACT_GLOBS = (
     "src/modules/*/types.py",
 )
 
+_NULL_SHA = "0" * 40
+
+# Deliberately line-level, not file-level: matches a line that plausibly defines
+# or constructs part of the wire contract, not just any line in a contract file.
+_WIRE_SHAPE_MARKERS = re.compile(
+    r"strawberry\.(field|argument|type|mutation|input|enum)\s*\("
+    r"|\bdescription\s*="
+    r"|\bjson\s*="
+    r"|\bbody\s*\["
+    r"|\bbody\s*="
+    r"|\.post\("
+    r"|\.put\("
+    r"|^\s*class\s+\w+"
+    r"|^\s*\w+\s*:\s*[\w\[\]\"'.| ]+(=.*)?$"  # `name: Type` / `name: Type = default` field decl
+)
+
 
 def _matches_contract(relative_path: str) -> bool:
     path = Path(relative_path)
     return any(path.match(pattern) for pattern in CONTRACT_GLOBS)
 
 
-_NULL_SHA = "0" * 40
+def _run_git(command: list[str]) -> str | None:
+    try:
+        result = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, check=True)
+    except subprocess.CalledProcessError as exc:
+        print(
+            f"wire-contract-coverage: `{' '.join(command)}` failed ({exc}); skipping.",
+            file=sys.stderr,
+        )
+        return None
+    return result.stdout
 
 
 def _changed_files(base_ref: str | None) -> list[str]:
@@ -50,30 +82,47 @@ def _changed_files(base_ref: str | None) -> list[str]:
     else:
         command = ["git", "diff", f"{base_ref}...HEAD", "--name-only", "--diff-filter=ACMR"]
 
-    try:
-        result = subprocess.run(command, cwd=REPO_ROOT, capture_output=True, text=True, check=True)
-    except subprocess.CalledProcessError as exc:
-        print(
-            f"wire-contract-coverage: couldn't diff against {base_ref!r} ({exc}); skipping.",
-            file=sys.stderr,
-        )
+    output = _run_git(command)
+    return [line for line in output.splitlines() if line] if output is not None else []
+
+
+def _changed_lines(path: str, base_ref: str | None) -> list[str]:
+    """Added/removed line content (no +/- prefix) for one file's diff, unified with 0 context."""
+
+    if base_ref is None:
+        command = ["git", "diff", "--cached", "-U0", "--", path]
+    else:
+        command = ["git", "diff", f"{base_ref}...HEAD", "-U0", "--", path]
+
+    output = _run_git(command)
+    if output is None:
         return []
 
-    return [line for line in result.stdout.splitlines() if line]
+    lines: list[str] = []
+    for line in output.splitlines():
+        if line.startswith(("+++", "---", "@@", "diff --git", "index ")):
+            continue
+        if line.startswith(("+", "-")):
+            lines.append(line[1:])
+    return lines
+
+
+def _is_wire_shape_change(path: str, base_ref: str | None) -> bool:
+    return any(_WIRE_SHAPE_MARKERS.search(line) for line in _changed_lines(path, base_ref))
 
 
 def check(base_ref: str | None) -> list[str]:
-    """Return the contract files changed without a matching tests/ change; empty if OK."""
+    """Return the contract files with a wire-shape-relevant change and no tests/ change."""
 
     changed = _changed_files(base_ref)
-    contract_hits = [path for path in changed if _matches_contract(path)]
+    contract_candidates = [path for path in changed if _matches_contract(path)]
 
-    if not contract_hits:
+    if not contract_candidates:
         return []
     if any(path.startswith("tests/") for path in changed):
         return []
 
-    return contract_hits
+    return [path for path in contract_candidates if _is_wire_shape_change(path, base_ref)]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -86,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     print(
-        "Wire-contract file(s) changed with no tests/ file in the same diff:",
+        "Wire-shape-relevant change(s) with no tests/ file in the same diff:",
         file=sys.stderr,
     )
     for path in contract_hits:
@@ -94,8 +143,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "\nIf a GraphQL response, status/upload callback, or queue message body "
         "changed shape, update the matching tests/test_*_graphql.py assertions "
-        "(see .github/CONTRIBUTING.md's Testing Philosophy, tier 2). If this is "
-        "genuinely a no-op refactor, skip this check explicitly: "
+        "(see .github/CONTRIBUTING.md's Testing Philosophy, tier 2). If this "
+        "heuristic is wrong for this change, skip it explicitly: "
         "`SKIP=wire-contract-coverage git commit ...` locally, or pass the diff "
         "base explicitly in CI — don't silently ignore it.",
         file=sys.stderr,
