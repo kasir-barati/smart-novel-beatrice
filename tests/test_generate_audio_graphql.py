@@ -117,7 +117,11 @@ async def test_generate_audio_returns_202_and_publishes_to_the_queue(
 
     queued_requests = wiremock.requests_for("/status-callback")
     assert len(queued_requests) == 1
-    assert json.loads(queued_requests[0]["body"]) == {"status": "queued", "jobId": job_id}
+    assert json.loads(queued_requests[0]["body"]) == {
+        "status": "queued",
+        "jobId": job_id,
+        "progress": 1,
+    }
 
 
 async def test_generate_audio_publishes_instruct_when_given(
@@ -201,6 +205,7 @@ async def test_generate_audio_publishes_client_context_id_when_given(
     assert json.loads(queued_requests[0]["body"]) == {
         "status": "queued",
         "jobId": job_id,
+        "progress": 1,
         "clientContextId": "chapter-42",
     }
 
@@ -292,6 +297,10 @@ async def test_generate_audio_pipeline_uploads_the_file_and_reports_completion(
     assert statuses_seen == ["queued", "generating", "uploading", "completed"]
     assert all(u["jobId"] == job_id for u in status_updates)
     assert all(u["clientContextId"] == "chapter-42" for u in status_updates)
+    progress_by_status = {
+        u["status"]: u["progress"] for u in status_updates if u["status"] != "completed"
+    }
+    assert progress_by_status == {"queued": 1, "generating": 2, "uploading": 3}
 
     upload_requests = wiremock.requests_for("/upload")
     assert json.loads(upload_requests[0]["body"]) == {"clientContextId": "chapter-42"}

@@ -169,8 +169,10 @@ def app_container(
     ``TTS__QWEN__BASE_URL`` points at WireMock rather than the real DashScope API —
     the default TTS provider is qwen3-tts, and `generateAudio` tests stub its
     synthesize response there instead of hitting a live third-party endpoint.
-    ``TTS__QWEN__VOICES`` is static config now (no voices-listing endpoint exists),
-    so it's set directly here rather than stubbed.
+    ``TTS__QWEN__API_KEY`` only needs to be non-empty — `Settings` requires it
+    whenever `TTS__DEFAULT_PROVIDER=qwen3-tts`, but nothing here calls the real
+    DashScope API to check its value. ``TTS__QWEN__VOICES`` is static config now (no
+    voices-listing endpoint exists), so it's set directly here rather than stubbed.
     ``GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS`` allow-lists the WireMock alias so
     `generateAudio`'s genUploadUrl/statusCallbackUrl can point at it in tests.
     ``RABBITMQ__WORKER_ENABLED=false`` because this container is session-scoped and
@@ -184,11 +186,13 @@ def app_container(
         .with_exposed_ports(CONTAINER_PORT)
         .with_network(docker_network)
         .with_env("LLM__BASE_URL", f"http://{OLLAMA_NETWORK_ALIAS}:11434/v1")
+        .with_env("LLM__API_KEY", "ollama")
         .with_env("LLM__MODEL", OLLAMA_MODEL)
         .with_env("LLM__TIMEOUT_MS", "180000")
         .with_env("NORMALIZE_TTS__TEMPERATURE", "0")
         .with_env("EXPLAIN_WORD__TEMPERATURE", "0")
         .with_env("TTS__QWEN__BASE_URL", f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}")
+        .with_env("TTS__QWEN__API_KEY", "test-key")
         .with_env("TTS__QWEN__VOICES", "qwen-voice-a,qwen-voice-b")
         .with_env("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", WIREMOCK_NETWORK_ALIAS)
         .with_env("RABBITMQ__CONNECTION_STRING", rabbitmq_internal_url)
@@ -235,12 +239,18 @@ def worker_container(
         DockerContainer(app_image)
         .with_command("python -m src.worker")
         .with_network(docker_network)
+        .with_env("LLM__BASE_URL", f"http://{OLLAMA_NETWORK_ALIAS}:11434/v1")
+        .with_env("LLM__API_KEY", "ollama")
+        .with_env("LLM__MODEL", OLLAMA_MODEL)
         .with_env("TTS__QWEN__BASE_URL", f"http://{WIREMOCK_NETWORK_ALIAS}:{WIREMOCK_PORT}")
+        .with_env("TTS__QWEN__API_KEY", "test-key")
+        .with_env("TTS__QWEN__VOICES", "qwen-voice-a,qwen-voice-b")
         .with_env("GENERATE_AUDIO__CALLBACK__ALLOWED_HOSTS", WIREMOCK_NETWORK_ALIAS)
         .with_env("RABBITMQ__CONNECTION_STRING", rabbitmq_internal_url)
         .with_env("RABBITMQ__DELIVERY_LIMIT", "2")
         .with_env("RABBITMQ__RETRY_DELAY_SECONDS", "1")
         .with_env("OTEL__ENABLED", "false")
+        .with_env("OTEL__EXPORTER_OTLP_ENDPOINT", f"http://{OTEL_COLLECTOR_ALIAS}:4318")
         .waiting_for(LogMessageWaitStrategy("worker ready").with_startup_timeout(30))
     )
 

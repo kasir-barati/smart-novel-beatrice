@@ -9,6 +9,9 @@ SHELL         := /bin/bash
 PORT      ?= 3000
 IMAGE     ?= smart-novel-beatrice
 TAG       ?= dev
+# Diff base for check_wire_contract_test_coverage.py; empty = staged changes (local dev).
+# CI passes the previous commit SHA to diff the whole push instead.
+WIRE_CONTRACT_BASE ?=
 
 
 ## Show this help message
@@ -118,6 +121,7 @@ lint_check:
 	uv run ruff check .
 	uv run flake8 .
 	uv run python local-setup/scripts/check_private_imports.py
+	uv run python local-setup/scripts/check_wire_contract_test_coverage.py $(WIRE_CONTRACT_BASE)
 
 ## Apply linter to all files
 lint:

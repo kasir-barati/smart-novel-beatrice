@@ -72,6 +72,13 @@ repos:
         language: system
         files: ^src/(schema\.py|modules/.+/(resolver|types)\.py)$
         pass_filenames: false
+      - id: wire-contract-coverage
+        name: "wire-contract test coverage (resolver/worker/progress/types changed → tests/ must too)"
+        entry: uv run python local-setup/scripts/check_wire_contract_test_coverage.py
+        language: system
+        stages: [pre-commit]
+        pass_filenames: false
+        always_run: true
       - id: tests
         name: run unit tests
         entry: make test

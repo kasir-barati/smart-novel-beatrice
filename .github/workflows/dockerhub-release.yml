@@ -129,12 +129,12 @@ jobs:
 
   integration_tests:
     name: Run integration tests
-    needs: check_release
-    if: ${{ needs.check_release.outputs.will_release == 'true' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -146,6 +146,11 @@ jobs:
 
       - name: Install Python deps
         run: uv sync
+
+      - name: Check wire-contract test coverage
+        env:
+          DIFF_BASE_SHA: ${{ github.event.before }}
+        run: uv run python local-setup/scripts/check_wire_contract_test_coverage.py "$DIFF_BASE_SHA"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
