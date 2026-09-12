@@ -39,6 +39,7 @@ CONTRACT_GLOBS = (
 )
 
 _NULL_SHA = "0" * 40
+_SHA_RE = re.compile(r"^[0-9a-fA-F]{4,40}$")
 
 # Deliberately line-level, not file-level: matches a line that plausibly defines
 # or constructs part of the wire contract, not just any line in a contract file.
@@ -113,6 +114,19 @@ def _is_wire_shape_change(path: str, base_ref: str | None) -> bool:
 
 def check(base_ref: str | None) -> list[str]:
     """Return the contract files with a wire-shape-relevant change and no tests/ change."""
+
+    # `base_ref` feeds straight into a `git diff <base_ref>...HEAD` revision spec — an
+    # unvalidated value starting with `-` would be parsed as a git option, not a
+    # revision (argument injection). The only legitimate values are commit SHAs (from
+    # a CLI arg or `github.event.before`), so a strict hex-only pattern both rejects
+    # that and rejects anything else without needing to enumerate unsafe characters.
+    if base_ref is not None and base_ref != _NULL_SHA and not _SHA_RE.match(base_ref):
+        print(
+            f"wire-contract-coverage: base ref {base_ref!r} doesn't look like a commit "
+            "SHA; skipping rather than passing it to git.",
+            file=sys.stderr,
+        )
+        return []
 
     changed = _changed_files(base_ref)
     contract_candidates = [path for path in changed if _matches_contract(path)]
