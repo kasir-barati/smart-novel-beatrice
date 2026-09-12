@@ -72,8 +72,7 @@ jobs:
       - name: Install Python deps
         run: uv sync
 
-      # Cheap and diff-based (no Docker), so it runs unconditionally on every push —
-      # unlike integration_tests below, this isn't worth gating behind will_release.
+      # Cheap and diff-based (no Docker), so it runs unconditionally on every push unlike integration_tests below, this isn't worth gating behind will_release.
       - name: Check wire-contract test coverage
         env:
           DIFF_BASE_SHA: ${{ github.event.before }}
@@ -139,18 +138,7 @@ jobs:
   integration_tests:
     name: Run integration tests
     needs: check_release
-    # Gated behind will_release on purpose (decided while building the ordered-TTS-
-    # status-callbacks feature, 2026-09): this job builds/boots Ollama + the full app
-    # image via Testcontainers, which is expensive, and a docs-only push shouldn't pay
-    # that cost. The tradeoff we accepted: a non-release commit (chore/refactor/feat/fix
-    # that doesn't trigger a release) that breaks tests/ won't be caught here until some
-    # later commit does trigger a release — and even then, a push can bundle several
-    # commits, so a red run only gives "somewhere in this push," not a single commit to
-    # blame. We considered narrowing the gate to skip only genuinely docs-only pushes
-    # (by diffed file paths) and run it for chore/refactor too, but decided the added
-    # complexity wasn't worth it right now — check_wire_contract_test_coverage.py (in
-    # unit_tests above, which always runs) is the actual backstop against this class of
-    # miss; re-open this if that proves insufficient in practice.
+    # Gated behind will_release on purpose. This job builds/boots Ollama + the full app image via Testcontainers, which is expensive, and a docs-only push shouldn't pay that cost. The tradeoff we accepted: a commit message which is not releasing a new version (look at .releaserc.json for more info) might break tests and they won't be caught here until some later commit does trigger a release — and even then, a push can bundle several commits, so a red run only gives "somewhere in this push", not a single commit to blame. We considered narrowing the gate to skip only genuinely docs-only pushes (by diffed file paths) and run it for chore/refactor too, but decided the added complexity wasn't worth it right now — check_wire_contract_test_coverage.py (in unit_tests above, which always runs) is the actual backstop against this class of miss; re-open this if that proves insufficient in practice.
     if: ${{ needs.check_release.outputs.will_release == 'true' }}
     runs-on: ubuntu-latest
     steps:
