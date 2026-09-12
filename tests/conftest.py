@@ -54,9 +54,10 @@ OTEL_COLLECTOR_CONFIG = Path(__file__).resolve().parent / "fixtures" / "otel-col
 WIREMOCK_IMAGE = "wiremock/wiremock:3.9.2"
 WIREMOCK_PORT = 8080
 WIREMOCK_NETWORK_ALIAS = "wiremock"
+MINIO_IMAGE = "quay.io/minio/minio:RELEASE.2025-04-08T15-41-24Z"
 MINIO_NETWORK_ALIAS = "minio"
 MINIO_TEST_BUCKET = "beatrice-test"
-MC_IMAGE = "minio/mc:latest"
+MC_IMAGE = "quay.io/minio/mc:RELEASE.2025-04-08T15-39-49Z"
 RABBITMQ_IMAGE = "rabbitmq:3.13-management-alpine"
 RABBITMQ_PORT = 5672
 RABBITMQ_NETWORK_ALIAS = "rabbitmq"
@@ -332,7 +333,9 @@ def minio_container(docker_network: Network) -> Iterator[MinioContainer]:
     """MinIO instance reachable from the app container as ``minio:9000``."""
 
     container = (
-        MinioContainer().with_network(docker_network).with_network_aliases(MINIO_NETWORK_ALIAS)
+        MinioContainer(MINIO_IMAGE)
+        .with_network(docker_network)
+        .with_network_aliases(MINIO_NETWORK_ALIAS)
     )
 
     with container:
