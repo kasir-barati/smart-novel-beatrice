@@ -16,6 +16,7 @@ from typing import Any
 import aio_pika
 import httpx
 
+from src.modules.audio import progress
 from src.modules.audio.callback_urls import CallbackUrlNotAllowedError, validate_callback_url
 from src.modules.audio.provider import build_provider
 from src.modules.audio.rabbitmq import QUEUE_ARGUMENTS
@@ -30,54 +31,6 @@ _logger = logging.getLogger(__name__)
 _UPLOAD_CONTENT_TYPE = "audio/mpeg"
 
 
-async def _post_status_update(
-    status_callback_url: str,
-    body: dict[str, Any],
-    *,
-    authorization: str | None,
-    job_id: str,
-    client_context_id: str | None,
-) -> None:
-    """
-    Best-effort — a flaky callback endpoint shouldn't fail job processing.
-
-    Re-validates the host allow-list before calling out: this URL was already checked
-    once by the `generateAudio` mutation, but that check doesn't carry across the
-    RabbitMQ hop — this process has no way to know the message wasn't tampered with or
-    published some other way, so it re-checks rather than trusting the queue.
-    """
-
-    try:
-        validate_callback_url(status_callback_url)
-    except CallbackUrlNotAllowedError as exc:
-        _logger.warning(
-            "Refusing to call statusCallbackUrl: failed allow-list re-validation",
-            extra={"job_id": job_id, "body": body, "exception_message": str(exc)},
-        )
-        return
-
-    body = {**body, "jobId": job_id}
-    if client_context_id is not None:
-        body["clientContextId"] = client_context_id
-    headers = {"authorization": authorization} if authorization is not None else {}
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(status_callback_url, json=body, headers=headers)
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        _logger.warning(
-            "Failed to call statusCallbackUrl",
-            extra={
-                "job_id": job_id,
-                "body": body,
-                "exception_type": type(exc).__name__,
-                "exception_message": str(exc),
-            },
-            exc_info=exc,
-        )
-
-
 async def report_progress(
     status_callback_url: str,
     *,
@@ -86,12 +39,13 @@ async def report_progress(
     job_id: str,
     client_context_id: str | None,
 ) -> None:
-    await _post_status_update(
+    await progress.report(
         status_callback_url,
-        {"status": status},
-        authorization=authorization,
+        status,
         job_id=job_id,
         client_context_id=client_context_id,
+        authorization=authorization,
+        revalidate=True,
     )
 
 
@@ -103,12 +57,14 @@ async def report_completed(
     job_id: str,
     client_context_id: str | None,
 ) -> None:
-    await _post_status_update(
+    await progress.report(
         status_callback_url,
-        {"status": "completed", "fileSizeBytes": file_size_bytes},
-        authorization=authorization,
+        "completed",
         job_id=job_id,
         client_context_id=client_context_id,
+        authorization=authorization,
+        revalidate=True,
+        fileSizeBytes=file_size_bytes,
     )
 
 
@@ -121,16 +77,15 @@ async def report_failed(
     job_id: str,
     client_context_id: str | None,
 ) -> None:
-    await _post_status_update(
+    await progress.report(
         status_callback_url,
-        {
-            "status": "failed",
-            "failedAt": datetime.now(UTC).isoformat(),
-            "error": {"code": code.value, "message": message},
-        },
-        authorization=authorization,
+        "failed",
         job_id=job_id,
         client_context_id=client_context_id,
+        authorization=authorization,
+        revalidate=True,
+        failedAt=datetime.now(UTC).isoformat(),
+        error={"code": code.value, "message": message},
     )
 
 

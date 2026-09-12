@@ -45,3 +45,18 @@ up --build`). Noted but left untouched: an unrelated working-tree change to
 `.claude/skills/build-step/SKILL.md` (description/wording only, not made by this
 run) was present before this step started and out of this step's scope, so it was
 left unstaged rather than folded into the step 3 commit.
+
+## 2026-09-12 — ordered TTS status callbacks, step 1
+
+Collapsed `resolver.py`'s `_report_queued` and `worker.py`'s
+`report_progress`/`report_completed`/`report_failed`/`_post_status_update` into one
+`progress.report(...)` entry point in a new `progress.py`, with `revalidate=True` as
+the one behavioral knob (worker's calls re-check the allow-list post-queue-hop, the
+resolver's own call doesn't need to). Moved the exhaustive httpx-mocked body/header
+assertions for all five statuses into `progress__test.py`; `resolver__test.py` and
+`worker__test.py` now just assert their functions delegate to `progress.report` with
+the right arguments (via a small `_record_progress_report` recorder), so the two
+tiers of test don't duplicate the same httpx-transport coverage. No process gaps —
+pure refactor, no GraphQL surface or prompt changed, so graphql-api-tester and
+`make evals` were both correctly skipped per the step's Test notes; unit tests, ruff,
+flake8, and pyright all passed first run.

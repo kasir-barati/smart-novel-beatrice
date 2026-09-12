@@ -79,139 +79,90 @@ class _FakeHttpxClient:
         return _FakeHttpxResponse(200)
 
 
-async def test_report_progress_posts_status(monkeypatch: pytest.MonkeyPatch) -> None:
+def _record_progress_report(sink: list[dict[str, Any]]):
+    async def _fn(
+        url: str,
+        status: str,
+        *,
+        job_id: str,
+        client_context_id: str | None,
+        authorization: str | None,
+        revalidate: bool = False,
+        **extra: Any,
+    ) -> None:
+        sink.append(
+            {
+                "url": url,
+                "status": status,
+                "job_id": job_id,
+                "client_context_id": client_context_id,
+                "authorization": authorization,
+                "revalidate": revalidate,
+                **extra,
+            }
+        )
+
+    return _fn
+
+
+async def test_report_progress_delegates_to_progress_report(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
+    monkeypatch.setattr(worker_module.progress, "report", _record_progress_report(calls))
 
     await report_progress(
         "http://client.example.com/status",
         status="generating",
         authorization="Bearer secret",
         job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+        client_context_id="chapter-42",
+    )
+
+    assert calls == [
+        {
+            "url": "http://client.example.com/status",
+            "status": "generating",
+            "job_id": "2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+            "client_context_id": "chapter-42",
+            "authorization": "Bearer secret",
+            "revalidate": True,
+        }
+    ]
+
+
+async def test_report_completed_delegates_to_progress_report_with_file_size(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(worker_module.progress, "report", _record_progress_report(calls))
+
+    await report_completed(
+        "http://client.example.com/status",
+        file_size_bytes=4096,
+        authorization=None,
+        job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
         client_context_id=None,
     )
 
     assert calls == [
         {
-            "method": "POST",
             "url": "http://client.example.com/status",
-            "json": {
-                "status": "generating",
-                "jobId": "2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
-            },
-            "headers": {"authorization": "Bearer secret"},
+            "status": "completed",
+            "job_id": "2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
+            "client_context_id": None,
+            "authorization": None,
+            "revalidate": True,
+            "fileSizeBytes": 4096,
         }
     ]
 
 
-async def test_report_progress_includes_client_context_id_when_given(
+async def test_report_failed_delegates_to_progress_report_with_error_and_failed_at(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
-
-    await report_progress(
-        "http://client.example.com/status",
-        status="generating",
-        authorization=None,
-        job_id="job-1",
-        client_context_id="chapter-42",
-    )
-
-    assert calls[0]["json"]["clientContextId"] == "chapter-42"
-
-
-async def test_report_progress_does_not_raise_on_callback_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient([], fail=True)
-    )
-
-    await report_progress(
-        "http://client.example.com/status",
-        status="generating",
-        authorization=None,
-        job_id="job-1",
-        client_context_id=None,
-    )
-
-
-async def test_report_progress_refuses_a_host_not_on_the_allow_list(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """
-    The URL was already validated once by generateAudio, but this process only has the
-    queue message to go on — it must not trust that validation carried across the hop.
-    """
-
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
-
-    await report_progress(
-        "https://evil.example.com/status",
-        status="generating",
-        authorization=None,
-        job_id="job-1",
-        client_context_id=None,
-    )
-
-    assert calls == []
-
-
-async def test_report_completed_posts_status_and_file_size(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
-
-    await report_completed(
-        "http://client.example.com/status",
-        file_size_bytes=4096,
-        authorization=None,
-        job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
-        client_context_id=None,
-    )
-
-    assert calls[0]["json"] == {
-        "status": "completed",
-        "fileSizeBytes": 4096,
-        "jobId": "2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
-    }
-
-
-async def test_report_completed_includes_client_context_id_when_given(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
-
-    await report_completed(
-        "http://client.example.com/status",
-        file_size_bytes=4096,
-        authorization=None,
-        job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
-        client_context_id="chapter-42",
-    )
-
-    assert calls[0]["json"]["clientContextId"] == "chapter-42"
-
-
-async def test_report_failed_posts_status_error_code_and_message(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
+    monkeypatch.setattr(worker_module.progress, "report", _record_progress_report(calls))
 
     await report_failed(
         "http://client.example.com/status",
@@ -222,32 +173,12 @@ async def test_report_failed_posts_status_error_code_and_message(
         client_context_id=None,
     )
 
-    body = calls[0]["json"]
-    assert body["status"] == "failed"
-    assert "failedAt" in body
-    assert body["error"] == {"code": "UPLOAD_ERROR", "message": "boom"}
-    assert body["jobId"] == "2bce49d6-6592-4ed3-b421-f913b9ecc3bd"
-    assert "clientContextId" not in body
-
-
-async def test_report_failed_includes_client_context_id_when_given(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        worker_module.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
-
-    await report_failed(
-        "http://client.example.com/status",
-        code=SynthesizeErrorCode.UPLOAD_ERROR,
-        message="boom",
-        authorization=None,
-        job_id="2bce49d6-6592-4ed3-b421-f913b9ecc3bd",
-        client_context_id="chapter-42",
-    )
-
-    assert calls[0]["json"]["clientContextId"] == "chapter-42"
+    assert len(calls) == 1
+    call = calls[0]
+    assert call["status"] == "failed"
+    assert call["revalidate"] is True
+    assert call["error"] == {"code": "UPLOAD_ERROR", "message": "boom"}
+    assert "failedAt" in call
 
 
 class _FakeProvider:

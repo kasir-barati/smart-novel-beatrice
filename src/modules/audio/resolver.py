@@ -5,25 +5,22 @@ Resolvers for the audio module's GraphQL surface.
 from __future__ import annotations
 
 import asyncio
-import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-import httpx
 import strawberry
 from pydantic import StringConstraints
 from pydantic.functional_validators import AfterValidator
 from strawberry.types import Info
 
+from src.modules.audio import progress
 from src.modules.audio.callback_urls import validate_callback_url
 from src.modules.audio.exceptions import InstructNotSupportedError, InvalidVoiceError
 from src.modules.audio.provider import build_provider
 from src.modules.audio.rabbitmq import publish_generate_audio_job
 from src.utils import TtsProviderName, get_settings, spectaql_example
 
-
-_logger = logging.getLogger(__name__)
 
 _voices_cache: list[str] | None = None
 _voices_cache_lock = asyncio.Lock()
@@ -191,9 +188,10 @@ async def generate_audio(
         body=message_body,
         headers=message_headers,
     )
-    await _report_queued(
-        job_id,
+    await progress.report(
         status_callback_url,
+        "queued",
+        job_id=job_id,
         client_context_id=client_context_id,
         authorization=authorization,
     )
@@ -201,40 +199,3 @@ async def generate_audio(
     info.context["response"].status_code = 202
 
     return GenerateAudioResult(job_id=job_id)
-
-
-async def _report_queued(
-    job_id: str,
-    status_callback_url: str,
-    *,
-    client_context_id: str | None,
-    authorization: str | None,
-) -> None:
-    """
-    Best-effort — the job is already durably published by the time this runs, so a flaky
-    callback endpoint shouldn't fail the mutation or drop the job.
-    """
-
-    headers = {"authorization": authorization} if authorization is not None else {}
-    body: dict[str, str] = {"status": "queued", "jobId": job_id}
-    if client_context_id is not None:
-        body["clientContextId"] = client_context_id
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(
-                status_callback_url,
-                json=body,
-                headers=headers,
-            )
-            response.raise_for_status()
-    except httpx.HTTPError as exc:
-        _logger.warning(
-            "Failed to report 'queued' status to statusCallbackUrl",
-            extra={
-                "job_id": job_id,
-                "exception_type": type(exc).__name__,
-                "exception_message": str(exc),
-            },
-            exc_info=exc,
-        )

@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any, cast
 
-import httpx
 import pytest
 from strawberry.types import Info
 
@@ -98,35 +97,6 @@ def test_validate_text_length_rejects_text_over_limit(
         resolver._validate_text_length("too long")
 
 
-class _FakeHttpxResponse:
-    def __init__(self, status_code: int) -> None:
-        self.status_code = status_code
-
-    def raise_for_status(self) -> None:
-        if self.status_code >= 400:
-            raise httpx.HTTPStatusError("boom", request=None, response=None)  # type: ignore[arg-type]
-
-
-class _FakeHttpxClient:
-    def __init__(self, calls: list[dict[str, Any]], *, fail: bool) -> None:
-        self._calls = calls
-        self._fail = fail
-
-    async def __aenter__(self) -> _FakeHttpxClient:
-        return self
-
-    async def __aexit__(self, *exc: object) -> bool:
-        return False
-
-    async def post(
-        self, url: str, *, json: dict[str, Any], headers: dict[str, str]
-    ) -> _FakeHttpxResponse:
-        self._calls.append({"url": url, "json": json, "headers": headers})
-        if self._fail:
-            raise httpx.ConnectError("connection refused")
-        return _FakeHttpxResponse(200)
-
-
 class _FakeInfo:
     def __init__(self, *, authorization: str | None = None) -> None:
         headers = {"authorization": authorization} if authorization is not None else {}
@@ -167,10 +137,8 @@ async def test_generate_audio_publishes_and_responds_202(monkeypatch: pytest.Mon
     monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
     published: list[dict[str, Any]] = []
     monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish(published))
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
+    progress_calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(resolver.progress, "report", _record_progress_report(progress_calls))
     info = _fake_info(authorization="Bearer secret")
 
     result = await resolver.generate_audio(
@@ -189,9 +157,15 @@ async def test_generate_audio_publishes_and_responds_202(monkeypatch: pytest.Mon
     assert published[0]["body"]["jobId"] == result.job_id
     assert published[0]["headers"]["authorization"] == "Bearer secret"
     assert "timestamp" in published[0]["headers"]
-    assert len(calls) == 1
-    assert calls[0]["json"] == {"status": "queued", "jobId": result.job_id}
-    assert calls[0]["headers"] == {"authorization": "Bearer secret"}
+    assert progress_calls == [
+        {
+            "url": "https://client.example.com/status",
+            "status": "queued",
+            "job_id": result.job_id,
+            "client_context_id": None,
+            "authorization": "Bearer secret",
+        }
+    ]
 
 
 async def test_generate_audio_omits_authorization_header_when_absent(
@@ -200,10 +174,8 @@ async def test_generate_audio_omits_authorization_header_when_absent(
     monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
     published: list[dict[str, Any]] = []
     monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish(published))
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
+    progress_calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(resolver.progress, "report", _record_progress_report(progress_calls))
 
     await resolver.generate_audio(
         text="hello",
@@ -214,7 +186,7 @@ async def test_generate_audio_omits_authorization_header_when_absent(
     )
 
     assert "authorization" not in published[0]["headers"]
-    assert calls[0]["headers"] == {}
+    assert progress_calls[0]["authorization"] is None
 
 
 async def test_generate_audio_rejects_instruct_when_provider_is_not_qwen(
@@ -241,7 +213,7 @@ async def test_generate_audio_includes_instruct_in_published_body_when_given(
     monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
     published: list[dict[str, Any]] = []
     monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish(published))
-    monkeypatch.setattr(resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient([], fail=False))
+    monkeypatch.setattr(resolver.progress, "report", _async_noop)
 
     await resolver.generate_audio(
         text="hello",
@@ -261,7 +233,7 @@ async def test_generate_audio_omits_instruct_from_published_body_when_absent(
     monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
     published: list[dict[str, Any]] = []
     monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish(published))
-    monkeypatch.setattr(resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient([], fail=False))
+    monkeypatch.setattr(resolver.progress, "report", _async_noop)
 
     await resolver.generate_audio(
         text="hello",
@@ -280,7 +252,7 @@ async def test_generate_audio_includes_client_context_id_in_published_body_when_
     monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
     published: list[dict[str, Any]] = []
     monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish(published))
-    monkeypatch.setattr(resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient([], fail=False))
+    monkeypatch.setattr(resolver.progress, "report", _async_noop)
 
     await resolver.generate_audio(
         text="hello",
@@ -300,7 +272,7 @@ async def test_generate_audio_omits_client_context_id_from_published_body_when_a
     monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
     published: list[dict[str, Any]] = []
     monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish(published))
-    monkeypatch.setattr(resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient([], fail=False))
+    monkeypatch.setattr(resolver.progress, "report", _async_noop)
 
     await resolver.generate_audio(
         text="hello",
@@ -318,10 +290,8 @@ async def test_generate_audio_includes_client_context_id_in_queued_callback_when
 ) -> None:
     monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
     monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish([]))
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
+    progress_calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(resolver.progress, "report", _record_progress_report(progress_calls))
 
     await resolver.generate_audio(
         text="hello",
@@ -332,7 +302,7 @@ async def test_generate_audio_includes_client_context_id_in_queued_callback_when
         client_context_id="chapter-42",
     )
 
-    assert calls[0]["json"]["clientContextId"] == "chapter-42"
+    assert progress_calls[0]["client_context_id"] == "chapter-42"
 
 
 async def test_generate_audio_omits_client_context_id_from_queued_callback_when_absent(
@@ -340,10 +310,8 @@ async def test_generate_audio_omits_client_context_id_from_queued_callback_when_
 ) -> None:
     monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
     monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish([]))
-    calls: list[dict[str, Any]] = []
-    monkeypatch.setattr(
-        resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient(calls, fail=False)
-    )
+    progress_calls: list[dict[str, Any]] = []
+    monkeypatch.setattr(resolver.progress, "report", _record_progress_report(progress_calls))
 
     await resolver.generate_audio(
         text="hello",
@@ -353,29 +321,7 @@ async def test_generate_audio_omits_client_context_id_from_queued_callback_when_
         info=_fake_info(),
     )
 
-    assert "clientContextId" not in calls[0]["json"]
-
-
-async def test_generate_audio_does_not_fail_when_queued_callback_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(resolver, "resolve_audio_voices", _async_return(["known-voice"]))
-    published: list[dict[str, Any]] = []
-    monkeypatch.setattr(resolver, "publish_generate_audio_job", _record_publish(published))
-    monkeypatch.setattr(resolver.httpx, "AsyncClient", lambda **_: _FakeHttpxClient([], fail=True))
-    info = _fake_info()
-
-    result = await resolver.generate_audio(
-        text="hello",
-        voice="known-voice",
-        gen_upload_url="https://client.example.com/upload",
-        status_callback_url="https://client.example.com/status",
-        info=info,
-    )
-
-    assert result.job_id
-    assert info.context["response"].status_code == 202
-    assert len(published) == 1
+    assert progress_calls[0]["client_context_id"] is None
 
 
 def _async_return(value: Any):
@@ -385,8 +331,36 @@ def _async_return(value: Any):
     return _fn
 
 
+async def _async_noop(*args: Any, **kwargs: Any) -> None:
+    return None
+
+
 def _record_publish(sink: list[dict[str, Any]]):
     async def _fn(*, settings: Any, body: dict[str, Any], headers: dict[str, Any]) -> None:
         sink.append({"settings": settings, "body": body, "headers": headers})
+
+    return _fn
+
+
+def _record_progress_report(sink: list[dict[str, Any]]):
+    async def _fn(
+        url: str,
+        status: str,
+        *,
+        job_id: str,
+        client_context_id: str | None,
+        authorization: str | None,
+        **extra: Any,
+    ) -> None:
+        sink.append(
+            {
+                "url": url,
+                "status": status,
+                "job_id": job_id,
+                "client_context_id": client_context_id,
+                "authorization": authorization,
+                **extra,
+            }
+        )
 
     return _fn
