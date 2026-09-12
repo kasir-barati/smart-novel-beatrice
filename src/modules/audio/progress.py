@@ -17,6 +17,8 @@ from src.modules.audio.callback_urls import CallbackUrlNotAllowedError, validate
 
 _logger = logging.getLogger(__name__)
 
+_PROGRESS_BY_STATUS = {"queued": 1, "generating": 2, "uploading": 3}
+
 
 async def report(
     status_callback_url: str,
@@ -49,6 +51,9 @@ async def report(
             return
 
     body: dict[str, Any] = {"status": status, "jobId": job_id, **extra}
+    progress_rank = _PROGRESS_BY_STATUS.get(status)
+    if progress_rank is not None:
+        body["progress"] = progress_rank
     if client_context_id is not None:
         body["clientContextId"] = client_context_id
     headers = {"authorization": authorization} if authorization is not None else {}

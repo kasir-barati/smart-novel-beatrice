@@ -60,3 +60,19 @@ tiers of test don't duplicate the same httpx-transport coverage. No process gaps
 pure refactor, no GraphQL surface or prompt changed, so graphql-api-tester and
 `make evals` were both correctly skipped per the step's Test notes; unit tests, ruff,
 flake8, and pyright all passed first run.
+
+## 2026-09-12 — ordered TTS status callbacks, step 2
+
+Added a `_PROGRESS_BY_STATUS` rank table to `progress.py` (`queued: 1, generating: 2,
+uploading: 3`) and had `report` include `"progress": <int>` in the body when the
+status has a rank, omitting the key entirely for `completed`/`failed`. Updated
+`generate_audio`'s `status_callback_url` docstring and ran `make schema` to
+regenerate `docs/schema.graphql`. One environment gap, not a process gap: a plain
+`make schema` fails locally with `TTS__QWEN__API_KEY is required` because this
+repo's `.env` has every `TTS__*` var commented out while `TTS__DEFAULT_PROVIDER`
+still defaults to `qwen3-tts` — worked around with
+`TTS__QWEN__API_KEY=test-key make schema` rather than editing `.env`, since the
+missing key is a local dev-environment gap outside this step's scope, not something
+the step should fix. Everything else (unit tests, ruff, flake8, pyright) passed
+first run; graphql-api-tester correctly skipped (no argument/type surface changed,
+only a description).

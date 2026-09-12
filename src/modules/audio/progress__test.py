@@ -64,7 +64,7 @@ async def test_report_queued_posts_status(monkeypatch: pytest.MonkeyPatch) -> No
     assert calls == [
         {
             "url": "http://client.example.com/status",
-            "json": {"status": "queued", "jobId": "job-1"},
+            "json": {"status": "queued", "jobId": "job-1", "progress": 1},
             "headers": {"authorization": "Bearer secret"},
         }
     ]
@@ -82,7 +82,7 @@ async def test_report_generating_posts_status(monkeypatch: pytest.MonkeyPatch) -
         authorization=None,
     )
 
-    assert calls[0]["json"] == {"status": "generating", "jobId": "job-1"}
+    assert calls[0]["json"] == {"status": "generating", "jobId": "job-1", "progress": 2}
 
 
 async def test_report_uploading_posts_status(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -97,7 +97,7 @@ async def test_report_uploading_posts_status(monkeypatch: pytest.MonkeyPatch) ->
         authorization=None,
     )
 
-    assert calls[0]["json"] == {"status": "uploading", "jobId": "job-1"}
+    assert calls[0]["json"] == {"status": "uploading", "jobId": "job-1", "progress": 3}
 
 
 async def test_report_completed_posts_status_and_file_size(
@@ -116,6 +116,7 @@ async def test_report_completed_posts_status_and_file_size(
     )
 
     assert calls[0]["json"] == {"status": "completed", "jobId": "job-1", "fileSizeBytes": 4096}
+    assert "progress" not in calls[0]["json"]
 
 
 async def test_report_failed_posts_status_error_and_failed_at(
@@ -140,6 +141,7 @@ async def test_report_failed_posts_status_error_and_failed_at(
         "failedAt": "2024-01-01T00:00:00+00:00",
         "error": {"code": "UPLOAD_ERROR", "message": "boom"},
     }
+    assert "progress" not in calls[0]["json"]
 
 
 async def test_report_includes_client_context_id_when_given(
